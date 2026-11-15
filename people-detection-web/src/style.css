@@ -1,32 +1,33 @@
 /* ==========================================================================
-   PEOPLE DETECTION & MONITORING SYSTEM - AESTHETIC DASHBOARD STYLESHEET
-   High-end Dark Glassmorphism, Neon Accents, Cyber Telemetry Radar
+   FIREGUARD IOT - FIRE & FLAME DETECTION DASHBOARD STYLESHEET
+   Glassmorphic Fire Emergency Theme, Thermal Infrared Accents, Cyber Radar
    ========================================================================== */
 
 :root {
   --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   --font-mono: 'JetBrains Mono', Consolas, monospace;
 
-  /* Premium Obsidian & Cyber Color Palette */
-  --bg-deep: #050811;
-  --bg-card: rgba(13, 20, 38, 0.75);
-  --bg-card-hover: rgba(18, 28, 54, 0.85);
-  --bg-sidebar: #090e1d;
-  --bg-subtle: #111a33;
-  --bg-elevated: #162244;
+  /* Fire Emergency Color Palette */
+  --bg-deep: #05060d;
+  --bg-card: rgba(18, 15, 28, 0.78);
+  --bg-card-hover: rgba(28, 20, 38, 0.88);
+  --bg-sidebar: #0a0b16;
+  --bg-subtle: #14162a;
+  --bg-elevated: #1f1e38;
 
-  --border-subtle: rgba(255, 255, 255, 0.07);
-  --border-active: rgba(96, 165, 250, 0.35);
+  --border-subtle: rgba(255, 255, 255, 0.08);
+  --border-fire: rgba(244, 63, 94, 0.4);
+  --border-active: rgba(244, 63, 94, 0.5);
 
   --text-main: #f8fafc;
   --text-muted: #94a3b8;
   --text-dim: #64748b;
 
-  --cyan-accent: #00d2ff;
-  --blue-accent: #3b82f6;
-  --emerald-accent: #10b981;
-  --amber-accent: #f59e0b;
-  --rose-accent: #f43f5e;
+  --fire-crimson: #f43f5e;
+  --fire-amber: #f59e0b;
+  --fire-orange: #fb923c;
+  --safe-emerald: #10b981;
+  --info-blue: #3b82f6;
 }
 
 /* ==========================================================================
@@ -53,8 +54,8 @@ body {
   flex-direction: row;
   min-height: 100vh;
   background-image: 
-    radial-gradient(ellipse 80% 50% at 50% -20%, rgba(59, 130, 246, 0.15), transparent),
-    radial-gradient(circle at 90% 80%, rgba(16, 185, 129, 0.05), transparent);
+    radial-gradient(ellipse 70% 50% at 50% -10%, rgba(244, 63, 94, 0.12), transparent),
+    radial-gradient(circle at 90% 80%, rgba(245, 158, 11, 0.06), transparent);
   background-attachment: fixed;
 }
 
@@ -64,7 +65,7 @@ body {
 }
 
 /* ==========================================================================
-   RESPONSIVE APP LAYOUT (Works even without Tailwind CDN)
+   RESPONSIVE APP LAYOUT
    ========================================================================== */
 header.md\:hidden {
   display: none !important;
@@ -107,7 +108,7 @@ main {
     inset: 0 auto 0 0;
     transform: translateX(-100%);
     transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-    box-shadow: 20px 0 50px rgba(0, 0, 0, 0.8);
+    box-shadow: 20px 0 50px rgba(0, 0, 0, 0.85);
   }
   #sidebar.open {
     transform: translateX(0);
@@ -140,11 +141,11 @@ main {
 }
 
 .nav-item.active {
-  color: #60a5fa;
-  background: linear-gradient(90deg, rgba(59, 130, 246, 0.16) 0%, rgba(59, 130, 246, 0.04) 100%);
-  border: 1px solid rgba(59, 130, 246, 0.3);
+  color: #fb7185;
+  background: linear-gradient(90deg, rgba(244, 63, 94, 0.18) 0%, rgba(244, 63, 94, 0.04) 100%);
+  border: 1px solid rgba(244, 63, 94, 0.35);
   font-weight: 600;
-  box-shadow: 0 0 15px -3px rgba(59, 130, 246, 0.15);
+  box-shadow: 0 0 16px -3px rgba(244, 63, 94, 0.2);
 }
 
 /* ==========================================================================
@@ -159,14 +160,14 @@ main {
   padding: 1.25rem;
   position: relative;
   overflow: hidden;
-  box-shadow: 0 8px 24px -4px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 8px 24px -4px rgba(0, 0, 0, 0.5);
   transition: transform 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease;
 }
 
 .kpi-card:hover {
   transform: translateY(-2px);
-  border-color: var(--border-active);
-  box-shadow: 0 14px 30px -4px rgba(0, 0, 0, 0.5), 0 0 20px -5px rgba(59, 130, 246, 0.15);
+  border-color: rgba(244, 63, 94, 0.4);
+  box-shadow: 0 14px 30px -4px rgba(0, 0, 0, 0.6), 0 0 20px -5px rgba(244, 63, 94, 0.2);
 }
 
 /* Top accent highlight */
@@ -177,11 +178,11 @@ main {
   left: 0;
   right: 0;
   height: 1px;
-  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.15), transparent);
+  background: linear-gradient(90deg, transparent, rgba(244, 63, 94, 0.3), transparent);
 }
 
 /* ==========================================================================
-   RADAR TELEMETRY DISPLAY
+   THERMAL RADAR SCANNER
    ========================================================================== */
 .radar-sweep-beam {
   position: absolute;
@@ -191,8 +192,8 @@ main {
   height: 160px;
   transform-origin: 0 0;
   border-radius: 100% 0 0 0;
-  background: conic-gradient(from 0deg, rgba(0, 210, 255, 0.4) 0deg, rgba(59, 130, 246, 0.15) 30deg, transparent 60deg);
-  animation: radar-sweep 3.5s linear infinite;
+  background: conic-gradient(from 0deg, rgba(244, 63, 94, 0.45) 0deg, rgba(245, 158, 11, 0.2) 30deg, transparent 65deg);
+  animation: radar-sweep 3s linear infinite;
   pointer-events: none;
 }
 
@@ -202,64 +203,80 @@ main {
 }
 
 #radar-blip-dot {
-  box-shadow: 0 0 14px currentColor, 0 0 25px currentColor;
+  box-shadow: 0 0 14px currentColor, 0 0 28px currentColor;
 }
 
 /* ==========================================================================
-   HERO RADIAL STATE RING
+   HERO RADIAL STATE RING (FIRE ALERT vs SAFE)
    ========================================================================== */
 #monitor-hero-ring {
-  background: radial-gradient(circle, rgba(16, 26, 50, 0.9) 0%, rgba(5, 8, 17, 0.95) 100%);
+  background: radial-gradient(circle, rgba(26, 18, 32, 0.9) 0%, rgba(5, 6, 13, 0.95) 100%);
   border: 4px solid #1e293b;
   transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
   box-shadow: 0 15px 35px rgba(0, 0, 0, 0.6);
 }
 
+/* Emergency Fire State */
 #monitor-hero-ring.state-detected {
-  border-color: #10b981;
-  box-shadow: 0 0 45px -5px rgba(16, 185, 129, 0.45), inset 0 0 25px rgba(16, 185, 129, 0.2);
+  border-color: #f43f5e;
+  box-shadow: 0 0 50px 0px rgba(244, 63, 94, 0.6), inset 0 0 30px rgba(244, 63, 94, 0.3);
+  animation: emergency-flame-pulse 1.2s infinite alternate;
 }
 
+@keyframes emergency-flame-pulse {
+  0% {
+    box-shadow: 0 0 35px rgba(244, 63, 94, 0.5), inset 0 0 20px rgba(244, 63, 94, 0.2);
+    border-color: #f43f5e;
+  }
+  100% {
+    box-shadow: 0 0 65px rgba(245, 158, 11, 0.8), inset 0 0 40px rgba(245, 158, 11, 0.4);
+    border-color: #fb923c;
+  }
+}
+
+/* Safe State */
 #monitor-hero-ring.state-clear {
-  border-color: #3b82f6;
-  box-shadow: 0 0 40px -5px rgba(59, 130, 246, 0.35), inset 0 0 20px rgba(59, 130, 246, 0.15);
+  border-color: #10b981;
+  box-shadow: 0 0 40px -5px rgba(16, 185, 129, 0.4), inset 0 0 20px rgba(16, 185, 129, 0.15);
 }
 
+/* Warning State */
 #monitor-hero-ring.state-noreading {
   border-color: #f59e0b;
-  box-shadow: 0 0 35px -5px rgba(245, 158, 11, 0.3), inset 0 0 20px rgba(245, 158, 11, 0.15);
+  box-shadow: 0 0 35px -5px rgba(245, 158, 11, 0.4), inset 0 0 20px rgba(245, 158, 11, 0.2);
 }
 
+/* Offline State */
 #monitor-hero-ring.state-offline {
-  border-color: #ef4444;
-  box-shadow: 0 0 35px -5px rgba(239, 68, 68, 0.3), inset 0 0 20px rgba(239, 68, 68, 0.15);
+  border-color: #64748b;
+  box-shadow: 0 0 30px -5px rgba(100, 116, 139, 0.3), inset 0 0 15px rgba(100, 116, 139, 0.1);
 }
 
 /* ==========================================================================
    STATUS BADGES & INDICATORS
    ========================================================================== */
 .badge-active-detected {
+  background-color: rgba(244, 63, 94, 0.25) !important;
+  color: #fb7185 !important;
+  border-color: rgba(244, 63, 94, 0.7) !important;
+  box-shadow: 0 0 14px rgba(244, 63, 94, 0.4);
+}
+
+.badge-active-detected span {
+  background-color: #f43f5e !important;
+  box-shadow: 0 0 12px #f43f5e;
+}
+
+.badge-active-clear {
   background-color: rgba(16, 185, 129, 0.2) !important;
   color: #34d399 !important;
   border-color: rgba(16, 185, 129, 0.6) !important;
   box-shadow: 0 0 12px rgba(16, 185, 129, 0.25);
 }
 
-.badge-active-detected span {
+.badge-active-clear span {
   background-color: #10b981 !important;
   box-shadow: 0 0 10px #10b981;
-}
-
-.badge-active-clear {
-  background-color: rgba(59, 130, 246, 0.2) !important;
-  color: #60a5fa !important;
-  border-color: rgba(59, 130, 246, 0.6) !important;
-  box-shadow: 0 0 12px rgba(59, 130, 246, 0.25);
-}
-
-.badge-active-clear span {
-  background-color: #3b82f6 !important;
-  box-shadow: 0 0 10px #3b82f6;
 }
 
 .badge-active-noreading {
@@ -280,7 +297,7 @@ main {
 input[type="range"] {
   -webkit-appearance: none;
   appearance: none;
-  background: #151f38;
+  background: #191b30;
   border-radius: 9999px;
   height: 6px;
   outline: none;
@@ -292,16 +309,16 @@ input[type="range"]::-webkit-slider-thumb {
   width: 18px;
   height: 18px;
   border-radius: 50%;
-  background: #3b82f6;
+  background: #f43f5e;
   border: 2px solid #ffffff;
   cursor: pointer;
-  box-shadow: 0 0 12px rgba(59, 130, 246, 0.7);
+  box-shadow: 0 0 12px rgba(244, 63, 94, 0.7);
   transition: transform 0.15s ease, background-color 0.2s ease;
 }
 
 input[type="range"]::-webkit-slider-thumb:hover {
   transform: scale(1.2);
-  background: #60a5fa;
+  background: #fb7185;
 }
 
 /* ==========================================================================
@@ -310,7 +327,7 @@ input[type="range"]::-webkit-slider-thumb:hover {
 #config-modal {
   position: fixed;
   inset: 0;
-  background-color: rgba(3, 7, 18, 0.82);
+  background-color: rgba(3, 4, 10, 0.85);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   z-index: 50;
@@ -325,9 +342,9 @@ input[type="range"]::-webkit-slider-thumb:hover {
 }
 
 #config-modal > div {
-  background: #0d1527;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  box-shadow: 0 25px 60px -12px rgba(0, 0, 0, 0.8), 0 0 35px -5px rgba(59, 130, 246, 0.2);
+  background: #0f1020;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 25px 60px -12px rgba(0, 0, 0, 0.85), 0 0 35px -5px rgba(244, 63, 94, 0.2);
 }
 
 /* ==========================================================================
@@ -343,12 +360,12 @@ input[type="range"]::-webkit-slider-thumb:hover {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #1b2642;
+  background: #252038;
   border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #27375e;
+  background: #3c305a;
 }
 
 /* Table rows styling */
@@ -357,5 +374,5 @@ tbody tr {
 }
 
 tbody tr:hover {
-  background-color: rgba(30, 48, 86, 0.35) !important;
+  background-color: rgba(45, 30, 60, 0.4) !important;
 }

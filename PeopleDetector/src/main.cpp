@@ -1,29 +1,21 @@
 /**
  * ============================================================================
- * PEOPLE DETECTION AND MONITORING SYSTEM - ESP32-S3 FIRMWARE
+ * IOT FIRE AND FLAME DETECTION MONITORING SYSTEM - ESP32-S3 FIRMWARE
  * ============================================================================
  * Microcontroller: ESP32-S3 (WROOM / DevKitC-1)
  * Framework:       Arduino (C++)
  * Platform:        PlatformIO
  * 
- * Hardware Connections:
- *   HC-SR04 TRIG  --> ESP32-S3 GPIO 5
- *   HC-SR04 ECHO  --> 1kΩ resistor inline --> ESP32-S3 GPIO 4
- *   HC-SR04 VCC   --> 5V Power Rail (or ESP32 5V / VIN pin)
- *   HC-SR04 GND   --> Common Ground (GND)
- *
- * NOTE: ECHO moved to GPIO 4 (non-adjacent to TRIG GPIO 5) to prevent
- *       electrical crosstalk. GPIO 5 and 6 share a physical column on the
- *       DevKitC-1, causing capacitive coupling that produces false 1-4 µs pulses.
+ * Hardware Circuit Connections:
+ *   Flame Sensor VCC  --> ESP32-S3 3.3V (or 5V if 5V-only module)
+ *   Flame Sensor GND  --> Common Ground (GND)
+ *   Flame Sensor DO   --> ESP32-S3 GPIO 4 (Digital Trigger Output, Active LOW)
+ *   Flame Sensor AO   --> ESP32-S3 GPIO 5 (Analog Flame Intensity, ADC1_CH4)
+ *   Piezo Buzzer (+)  --> ESP32-S3 GPIO 7 (Emergency Siren Output)
+ *   Piezo Buzzer (-)  --> Common Ground (GND)
  * 
  * Cloud Backend:
  *   Supabase REST API (HTTPS POST /rest/v1/detection_readings)
- * 
- * Note on Academic Scope:
- *   The ultrasonic sensor measures acoustic time-of-flight to calculate
- *   physical distance to the nearest reflective surface. Proximity within
- *   the configured threshold classifies the state as "Detected" (possible
- *   presence), without claiming biological person identification.
  * ============================================================================
  */
 
@@ -37,44 +29,37 @@
 // ----------------------------------------------------------------------------
 // HARDWARE PIN DEFINITIONS
 // ----------------------------------------------------------------------------
-constexpr uint8_t PIN_TRIG   = 5;  // Ultrasonic Trigger Pin
-uint8_t pinEcho              = 4;  // Ultrasonic Echo Pin (Auto-detects GPIO 4 or GPIO 6)
-constexpr uint8_t PIN_BUZZER = 7;  // Audible Alert Buzzer Pin (Active or Passive)
+constexpr uint8_t PIN_FLAME_DO = 4;  // Flame Sensor Digital Output (LM393 Comparator)
+constexpr uint8_t PIN_FLAME_AO = 5;  // Flame Sensor Analog Output (ADC1 Channel 4)
+constexpr uint8_t PIN_BUZZER   = 7;  // Audible Emergency Alert Buzzer Pin
 
 // ----------------------------------------------------------------------------
 // SENSOR & SYSTEM CONFIGURATION
 // ----------------------------------------------------------------------------
-// Configurable detection threshold in centimeters (Academic Laboratory Default: 50.0 cm)
-constexpr float DETECTION_THRESHOLD_CM = 50.0f;
+// Analog flame threshold (0 - 4095 ADC scale on ESP32-S3, lower = hotter/closer flame)
+// Default threshold: Flame intensity >= 40% triggers alert
+constexpr float FLAME_INTENSITY_ALERT_THRESHOLD = 40.0f; // Percent
 
-// Operational physical limits of the HC-SR04 sensor
-constexpr float SENSOR_MIN_DISTANCE_CM = 2.0f;    // Minimum reliable sensing range
-constexpr float SENSOR_MAX_DISTANCE_CM = 400.0f;  // Maximum reliable sensing range
-
-// Speed of sound in ambient air at ~20°C: 343 m/s = 0.0343 cm/microsecond
-// Formula: Distance (cm) = (Echo pulse duration in microseconds * 0.0343) / 2
-constexpr float SPEED_OF_SOUND_CM_PER_US = 0.0343f;
-
-// pulseIn timeout: 30,000 microseconds (~514 cm max time-of-flight)
-constexpr unsigned long ECHO_TIMEOUT_US = 30000;
-
-// Periodic cloud upload rate: Exactly every 2000 ms (2.0 seconds)
+// Periodic cloud upload rate: 2000 ms during normal state
 constexpr unsigned long UPLOAD_INTERVAL_MS = 2000;
+
+// Fast emergency upload throttle: 1000 ms during active fire alert
+constexpr unsigned long EMERGENCY_UPLOAD_INTERVAL_MS = 1000;
 
 // Wi-Fi Reconnection check interval: 5000 ms
 constexpr unsigned long WIFI_RECONNECT_INTERVAL_MS = 5000;
 
 // ----------------------------------------------------------------------------
-// SENSOR DATA STRUCTURE & DIAGNOSTICS
+// DATA STRUCTURE FOR FIRE TELEMETRY
 // ----------------------------------------------------------------------------
-struct SensorReading {
-    float distanceCm;
-    unsigned long rawEchoDurationUs; // Raw pulse duration in microseconds
-    bool isDetected;
-    bool isValid;
-    bool isHardwareResponding;       // True if HC-SR04 returned any echo (> 0 µs)
-    const char* statusText;
-    const char* diagnosticMessage;
+struct FireReading {
+    bool isFlameDetected;       // True if flame detected via Digital or Analog
+    float flameIntensity;       // Flame intensity percentage (0.0% to 100.0%)
+    int rawAnalogValue;         // Raw 12-bit ADC value (0 to 4095)
+    bool digitalState;          // Raw Digital pin state (LOW = Flame on LM393)
+    bool isSensorHealthy;       // True if pins respond normally
+    const char* statusText;     // "Fire Alert", "Safe", "Warning", "No Reading"
+    const char* diagnosticMsg;  // Descriptive operational status
 };
 
 // ----------------------------------------------------------------------------
@@ -85,37 +70,38 @@ unsigned long lastWiFiCheckTimestamp = 0;
 unsigned long totalReadingsSent = 0;
 unsigned long totalUploadSuccesses = 0;
 unsigned long totalUploadFailures = 0;
+bool previousAlertState = false;
 
 // ----------------------------------------------------------------------------
 // FUNCTION DECLARATIONS
 // ----------------------------------------------------------------------------
 void setupHardware();
-void runUltrasonicSelfTest();
+void runHardwareSelfTest();
 void connectToWiFi();
 void maintainWiFiConnection();
-SensorReading sampleUltrasonicDistance();
-bool uploadReadingToSupabase(const SensorReading& reading);
-void triggerBuzzerAlert(bool playChirp);
+FireReading sampleFlameSensor();
+bool uploadReadingToSupabase(const FireReading& reading);
+void triggerEmergencySiren(bool activate);
 
 // ----------------------------------------------------------------------------
 // SETUP
 // ----------------------------------------------------------------------------
 void setup() {
-    // Initialize Hardware Serial Monitor
     Serial.begin(115200);
-    delay(1000); // Allow UART bridge to stabilize
+    delay(1000); // UART stabilization
 
     Serial.println();
     Serial.println("=======================================================");
-    Serial.println("  ESP32-S3 PEOPLE DETECTION & MONITORING SYSTEM        ");
-    Serial.println("  Academic Research & Laboratory Demonstration Node    ");
+    Serial.println("  ESP32-S3 IOT FIRE & FLAME DETECTION SYSTEM           ");
+    Serial.println("  Real-Time Thermal Radiation & Emergency Alert Node   ");
     Serial.println("=======================================================");
-    Serial.printf("Configured Distance Threshold: %.1f cm\n", DETECTION_THRESHOLD_CM);
-    Serial.printf("Sensor Pins: TRIG=GPIO%d, ECHO=GPIO%d (or GPIO 6), BUZZER=GPIO%d\n", PIN_TRIG, pinEcho, PIN_BUZZER);
+    Serial.printf("Sensor Pins: FLAME_DO=GPIO%d, FLAME_AO=GPIO%d, BUZZER=GPIO%d\n",
+                  PIN_FLAME_DO, PIN_FLAME_AO, PIN_BUZZER);
+    Serial.printf("Alert Trigger Threshold: Flame Intensity >= %.1f%%\n", FLAME_INTENSITY_ALERT_THRESHOLD);
     Serial.println("=======================================================");
 
     setupHardware();
-    runUltrasonicSelfTest();
+    runHardwareSelfTest();
     connectToWiFi();
 }
 
@@ -123,62 +109,62 @@ void setup() {
 // MAIN LOOP
 // ----------------------------------------------------------------------------
 void loop() {
-    // 1. Maintain background Wi-Fi connectivity
+    // 1. Maintain background Wi-Fi connection
     maintainWiFiConnection();
 
-    // 2. Non-blocking periodic sensor measurement and cloud upload every 2s
+    // 2. Sample Flame Sensor
+    FireReading reading = sampleFlameSensor();
+
+    // 3. Physical Audible Siren Control
+    if (reading.isFlameDetected) {
+        triggerEmergencySiren(true);
+    } else {
+        triggerEmergencySiren(false);
+    }
+
+    // 4. Determine upload interval (faster under emergency)
+    unsigned long interval = reading.isFlameDetected ? EMERGENCY_UPLOAD_INTERVAL_MS : UPLOAD_INTERVAL_MS;
     unsigned long currentMillis = millis();
-    if (currentMillis - lastUploadTimestamp >= UPLOAD_INTERVAL_MS) {
+
+    // Instant upload trigger on transition from SAFE to FIRE
+    bool stateChangedToAlert = (reading.isFlameDetected && !previousAlertState);
+    previousAlertState = reading.isFlameDetected;
+
+    if (stateChangedToAlert || (currentMillis - lastUploadTimestamp >= interval)) {
         lastUploadTimestamp = currentMillis;
 
-        // Perform acoustic distance measurement and state classification
-        SensorReading reading = sampleUltrasonicDistance();
-
-        // Print formatted real-time diagnostic panel to Serial Monitor
+        // Print real-time diagnostic panel to Serial Monitor
         Serial.println("=======================================================");
-        Serial.printf("[SAMPLE #%lu] ULTRASONIC SENSOR TELEMETRY & DIAGNOSTICS\n", totalReadingsSent + 1);
+        Serial.printf("[SAMPLE #%lu] FIRE & FLAME SENSOR TELEMETRY\n", totalReadingsSent + 1);
         Serial.println("-------------------------------------------------------");
         
-        if (reading.isHardwareResponding) {
-            Serial.printf("  Sensor Hardware   : OPERATIONAL [OK] (Echo: %lu us)\n", reading.rawEchoDurationUs);
+        if (reading.isFlameDetected) {
+            Serial.println("  🚨 EMERGENCY STATE : >>> FIRE / FLAME DETECTED! <<<");
         } else {
-            Serial.println("  Sensor Hardware   : NOT RESPONDING / TIMEOUT (0 us)");
-            Serial.println("  Troubleshooting   : Check 5V power rail, TRIG (GPIO 5), or ECHO (GPIO 4)");
+            Serial.println("  🛡️  SYSTEM STATE   : [NORMAL / SAFE - NO FIRE]");
         }
 
-        if (reading.isValid) {
-            Serial.printf("  Measured Distance : %.2f cm\n", reading.distanceCm);
-        } else {
-            Serial.println("  Measured Distance : Invalid / Out of Range");
-        }
+        Serial.printf("  Flame Intensity    : %.1f %%\n", reading.flameIntensity);
+        Serial.printf("  Raw Analog ADC     : %d / 4095 (GPIO %d)\n", reading.rawAnalogValue, PIN_FLAME_AO);
+        Serial.printf("  Digital Trigger DO : %s (GPIO %d)\n", 
+                      reading.digitalState ? "HIGH (Normal)" : "LOW (ACTIVE FLAME)", PIN_FLAME_DO);
+        Serial.printf("  Status Classification: %s\n", reading.statusText);
+        Serial.printf("  Diagnostic Detail  : %s\n", reading.diagnosticMsg);
+        Serial.printf("  Audible Siren      : %s\n", reading.isFlameDetected ? "ACTIVE ALARM (GPIO 7)" : "SILENT");
 
-        Serial.printf("  Distance Threshold: %.1f cm\n", DETECTION_THRESHOLD_CM);
-        Serial.printf("  Detection State   : [%s]\n", reading.isDetected ? "PERSON DETECTED" : "AREA CLEAR");
-        Serial.printf("  Sensor Status     : %s\n", reading.statusText);
-        Serial.printf("  Diagnostic Detail : %s\n", reading.diagnosticMessage);
-
-        // Physical Audible Alert (Buzzer pulses on detection)
-        if (reading.isDetected) {
-            Serial.println("  Audible Buzzer    : ACTIVE CHIRP (GPIO 7)");
-            triggerBuzzerAlert(true);
-        } else {
-            Serial.println("  Audible Buzzer    : SILENT (Area Clear)");
-            triggerBuzzerAlert(false);
-        }
-
-        // Upload to Supabase cloud if Wi-Fi is connected
+        // Upload to Supabase Cloud
         if (WiFi.status() == WL_CONNECTED) {
             bool success = uploadReadingToSupabase(reading);
             totalReadingsSent++;
             if (success) {
                 totalUploadSuccesses++;
-                Serial.printf("  Cloud Sync Status : SUCCESS (HTTP 201 Created | Total: %lu)\n", totalUploadSuccesses);
+                Serial.printf("  Cloud Sync Status  : SUCCESS (HTTP 201 | Total: %lu)\n", totalUploadSuccesses);
             } else {
                 totalUploadFailures++;
-                Serial.printf("  Cloud Sync Status : FAILED  (Total: %lu)\n", totalUploadFailures);
+                Serial.printf("  Cloud Sync Status  : FAILED  (Total: %lu)\n", totalUploadFailures);
             }
         } else {
-            Serial.println("  Cloud Sync Status : SKIPPED (Wi-Fi disconnected)");
+            Serial.println("  Cloud Sync Status  : SKIPPED (Wi-Fi disconnected)");
         }
         Serial.println("=======================================================");
         Serial.println();
@@ -189,86 +175,132 @@ void loop() {
 // HARDWARE INITIALIZATION
 // ----------------------------------------------------------------------------
 void setupHardware() {
-    pinMode(PIN_TRIG, OUTPUT);
-    // Use internal pull-down on ECHO to prevent floating high states from blocking pulseIn
-    pinMode(4, INPUT);
-    pinMode(6, INPUT);
+    pinMode(PIN_FLAME_DO, INPUT_PULLUP);
+    pinMode(PIN_FLAME_AO, INPUT);
     pinMode(PIN_BUZZER, OUTPUT);
 
-    // Ensure outputs start in low quiescent state
-    digitalWrite(PIN_TRIG, LOW);
+    // Initial state: Buzzer off
     digitalWrite(PIN_BUZZER, LOW);
+
+    // Configure ESP32 ADC resolution (12-bit: 0 - 4095)
+    analogReadResolution(12);
+
     delay(50);
-    Serial.println("[HW] HC-SR04 & Buzzer GPIO pins configured successfully.");
+    Serial.println("[HW] Flame sensor (DO=GPIO4, AO=GPIO5) and Buzzer (GPIO7) initialized.");
 }
 
 // ----------------------------------------------------------------------------
-// ULTRASONIC SENSOR HARDWARE SELF-TEST DIAGNOSTIC (POST)
+// HARDWARE SELF-TEST DIAGNOSTIC (POST)
 // ----------------------------------------------------------------------------
-void runUltrasonicSelfTest() {
+void runHardwareSelfTest() {
     Serial.println();
     Serial.println("-------------------------------------------------------");
-    Serial.println("  HC-SR04 ULTRASONIC SENSOR HARDWARE SELF-TEST        ");
+    Serial.println("  FIRE DETECTION SENSOR HARDWARE SELF-TEST            ");
     Serial.println("-------------------------------------------------------");
-    Serial.println("  Firing 3 diagnostic acoustic test pulses...");
+    Serial.println("  Reading initial ambient IR radiation baseline...");
 
-    int validEchoCount = 0;
-    float lastMeasuredDist = 0.0f;
+    delay(100);
+    int rawBaseline = analogRead(PIN_FLAME_AO);
+    int digitalVal = digitalRead(PIN_FLAME_DO);
 
-    for (int i = 1; i <= 3; i++) {
-        delay(60);
-        SensorReading test = sampleUltrasonicDistance();
-        if (test.isHardwareResponding) {
-            validEchoCount++;
-            if (test.isValid) lastMeasuredDist = test.distanceCm;
-            Serial.printf("   Test Pulse #%d: ECHO RECEIVED on GPIO %d (Duration: %lu us, Distance: %.1f cm)\n", 
-                          i, pinEcho, test.rawEchoDurationUs, test.distanceCm);
-        } else {
-            Serial.printf("   Test Pulse #%d: TIMEOUT / NO PULSE (Duration: %lu us)\n", i, test.rawEchoDurationUs);
-        }
-    }
+    Serial.printf("   Ambient IR Raw ADC: %d / 4095\n", rawBaseline);
+    Serial.printf("   Digital DO Status : %s\n", digitalVal == LOW ? "LOW (Flame Alert)" : "HIGH (Normal Clear)");
 
-    Serial.println();
-    if (validEchoCount > 0) {
-        Serial.println("  >>> RESULT: [PASSED] ULTRASONIC TRANSDUCER IS FUNCTIONAL! <<<");
-        if (lastMeasuredDist > 0) {
-            Serial.printf("      Target reflective surface detected at: %.2f cm\n", lastMeasuredDist);
-        }
-        // Confirmation double chirp on buzzer
-        triggerBuzzerAlert(true);
-        delay(80);
-        triggerBuzzerAlert(true);
-    } else {
-        Serial.println("  >>> RESULT: [WARNING] ULTRASONIC SENSOR IS NOT RESPONDING <<<");
-        Serial.println("      Zero echo pulses returned from ECHO (GPIO 4).");
-        Serial.println("      Hardware Troubleshooting Checklist:");
-        Serial.println("        1. Check VCC: Must be connected to 5V / VIN (not 3.3V).");
-        Serial.println("        2. Check TRIG: Must connect to GPIO 5.");
-        Serial.println("        3. Check ECHO: Must connect to GPIO 4 (via 1k resistor inline).");
-        Serial.println("        4. Check GND: Must share common ground with ESP32.");
-    }
+    // Test buzzer with dual confirmation beep
+    Serial.println("  Testing Emergency Buzzer Siren...");
+    triggerEmergencySiren(true);
+    delay(120);
+    triggerEmergencySiren(false);
+    delay(80);
+    triggerEmergencySiren(true);
+    delay(120);
+    triggerEmergencySiren(false);
+
+    Serial.println("  >>> RESULT: [PASSED] SENSOR NODE READY FOR FIRE MONITORING! <<<");
     Serial.println("-------------------------------------------------------");
     Serial.println();
 }
 
 // ----------------------------------------------------------------------------
-// BUZZER ACOUSTIC ALERT CONTROLLER
+// EMERGENCY SIREN PULSER
+// Generates an urgent dual-frequency warble fire siren using software timing
 // ----------------------------------------------------------------------------
-void triggerBuzzerAlert(bool playChirp) {
-    if (playChirp) {
-        // High-pitch 2400 Hz acoustic alert pulse
-        // Generates clean software square wave compatible with active & passive buzzers
-        // completely bypassing LEDC hardware timers to eliminate driver errors
+void triggerEmergencySiren(bool activate) {
+    if (activate) {
+        // High-low alternating siren: 2800 Hz and 1900 Hz warble
         unsigned long startMs = millis();
-        while (millis() - startMs < 100) {
+        // High tone (2800 Hz: half-cycle ~178 us) for 50ms
+        while (millis() - startMs < 50) {
             digitalWrite(PIN_BUZZER, HIGH);
-            delayMicroseconds(208); // 2400 Hz half-cycle
+            delayMicroseconds(178);
             digitalWrite(PIN_BUZZER, LOW);
-            delayMicroseconds(208);
+            delayMicroseconds(178);
+        }
+        // Low tone (1900 Hz: half-cycle ~263 us) for 50ms
+        startMs = millis();
+        while (millis() - startMs < 50) {
+            digitalWrite(PIN_BUZZER, HIGH);
+            delayMicroseconds(263);
+            digitalWrite(PIN_BUZZER, LOW);
+            delayMicroseconds(263);
         }
     } else {
         digitalWrite(PIN_BUZZER, LOW);
     }
+}
+
+// ----------------------------------------------------------------------------
+// FLAME SENSOR SAMPLING & CLASSIFICATION
+// ----------------------------------------------------------------------------
+FireReading sampleFlameSensor() {
+    FireReading result;
+    result.isFlameDetected = false;
+    result.flameIntensity = 0.0f;
+    result.rawAnalogValue = 0;
+    result.digitalState = HIGH;
+    result.isSensorHealthy = true;
+    result.statusText = "Safe";
+    result.diagnosticMsg = "No flame detected. Ambient environment normal.";
+
+    // Sample Digital Output (Active LOW on standard LM393 flame sensor modules)
+    result.digitalState = digitalRead(PIN_FLAME_DO);
+    bool digitalTriggered = (result.digitalState == LOW);
+
+    // Average 8 analog samples for noise rejection
+    long analogSum = 0;
+    for (int i = 0; i < 8; i++) {
+        analogSum += analogRead(PIN_FLAME_AO);
+        delayMicroseconds(50);
+    }
+    result.rawAnalogValue = (int)(analogSum / 8);
+
+    // Flame sensor modules output LOWER voltage when flame is detected:
+    // Raw ADC ~4095 = Dark (no flame) -> 0% intensity
+    // Raw ADC ~0-500 = Intense flame close to sensor -> 100% intensity
+    float intensity = ((4095.0f - (float)result.rawAnalogValue) / 4095.0f) * 100.0f;
+    if (intensity < 0.0f) intensity = 0.0f;
+    if (intensity > 100.0f) intensity = 100.0f;
+    result.flameIntensity = intensity;
+
+    // Classification Logic:
+    // Fire is flagged if Digital Output triggers (LOW) OR Analog Intensity exceeds threshold
+    if (digitalTriggered || result.flameIntensity >= FLAME_INTENSITY_ALERT_THRESHOLD) {
+        result.isFlameDetected = true;
+        result.statusText = "Fire Alert";
+        if (result.flameIntensity >= 75.0f) {
+            result.diagnosticMsg = "CRITICAL: Intense open flame detected nearby!";
+        } else if (result.flameIntensity >= FLAME_INTENSITY_ALERT_THRESHOLD) {
+            result.diagnosticMsg = "WARNING: Moderate flame / heat radiation detected.";
+        } else {
+            result.diagnosticMsg = "ALERT: Digital threshold triggered by IR flame sensor.";
+        }
+    } else {
+        result.isFlameDetected = false;
+        result.statusText = "Safe";
+        result.diagnosticMsg = "Area Safe. No fire or thermal source detected.";
+    }
+
+    return result;
 }
 
 // ----------------------------------------------------------------------------
@@ -311,159 +343,46 @@ void maintainWiFiConnection() {
 }
 
 // ----------------------------------------------------------------------------
-// ULTRASONIC DISTANCE MEASUREMENT & CLASSIFICATION
-// ----------------------------------------------------------------------------
-SensorReading sampleUltrasonicDistance() {
-    SensorReading result;
-    result.distanceCm = -1.0f;
-    result.rawEchoDurationUs = 0;
-    result.isDetected = false;
-    result.isValid = false;
-    result.isHardwareResponding = false;
-    result.statusText = "No Reading";
-    result.diagnosticMessage = "Initializing";
-
-    // Check if ECHO pin is stuck HIGH before triggering (causes pulseIn to immediately fail)
-    bool echoInitiallyHigh = (digitalRead(pinEcho) == HIGH);
-
-    // Step 1: Ensure clean low baseline for 10 microseconds
-    digitalWrite(PIN_TRIG, LOW);
-    delayMicroseconds(10);
-
-    // Step 2: Emit standard 12-microsecond ultrasonic burst trigger pulse
-    digitalWrite(PIN_TRIG, HIGH);
-    delayMicroseconds(12);
-    digitalWrite(PIN_TRIG, LOW);
-
-    // Step 3: Measure high pulse duration returned from HC-SR04 echo pin (35ms timeout)
-    unsigned long echoDurationUs = pulseIn(pinEcho, HIGH, 30000);
-
-    // Filter out breadboard electrical crosstalk:
-    // Any pulse under 60 microseconds is an electrical trigger spike (less than 1 cm),
-    // because acoustic sound takes at least 116 us to travel back and forth.
-    if (echoDurationUs < 60) {
-        // Discard the trigger spike and read the actual acoustic reflection
-        uint8_t altPin = (pinEcho == 4) ? 6 : 4;
-        digitalWrite(PIN_TRIG, LOW);
-        delayMicroseconds(5);
-        digitalWrite(PIN_TRIG, HIGH);
-        delayMicroseconds(10);
-        digitalWrite(PIN_TRIG, LOW);
-        unsigned long altDuration = pulseIn(altPin, HIGH, 30000);
-        if (altDuration >= 60) {
-            pinEcho = altPin;
-            echoDurationUs = altDuration;
-        }
-    }
-    result.rawEchoDurationUs = echoDurationUs;
-
-    // Step 4: Validate pulse duration and compute physical distance
-    if (echoDurationUs < 60) {
-        // Echo timed out: no acoustic reflection detected or sensor disconnected
-        result.isValid = false;
-        result.isDetected = false;
-        result.isHardwareResponding = (echoDurationUs > 0);
-        result.statusText = "No Reading";
-        if (echoInitiallyHigh) {
-            result.diagnosticMessage = "ECHO pin is stuck HIGH! Check for 5V short or swap TRIG/ECHO.";
-        } else {
-            result.diagnosticMessage = "Sensor timeout (0 us): Check 5V power on header J3, or wire contacts";
-        }
-        return result;
-    }
-
-    // Hardware returned a real acoustic pulse!
-    result.isHardwareResponding = true;
-
-    // Time-of-flight acoustic conversion to distance (cm)
-    float calculatedDistance = (echoDurationUs * SPEED_OF_SOUND_CM_PER_US) / 2.0f;
-
-    // Check against physical sensor operating boundaries (2 cm to 400 cm)
-    if (calculatedDistance < SENSOR_MIN_DISTANCE_CM) {
-        result.isValid = false;
-        result.isDetected = false;
-        result.statusText = "No Reading";
-        result.diagnosticMessage = "Blind zone error: Object closer than 2.0 cm min limit";
-        return result;
-    }
-
-    if (calculatedDistance > SENSOR_MAX_DISTANCE_CM) {
-        result.isValid = false;
-        result.isDetected = false;
-        result.statusText = "No Reading";
-        result.diagnosticMessage = "Out-of-range: Reflection beyond 400.0 cm max limit";
-        return result;
-    }
-
-    // Reading is acoustically valid
-    result.distanceCm = calculatedDistance;
-    result.isValid = true;
-
-    // Classification Logic:
-    // Distance > 0 and <= DETECTION_THRESHOLD_CM : Detected
-    // Distance > DETECTION_THRESHOLD_CM          : Clear
-    if (result.distanceCm <= DETECTION_THRESHOLD_CM) {
-        result.isDetected = true;
-        result.statusText = "Detected";
-        result.diagnosticMessage = "Object within proximity limit (Person Detected)";
-    } else {
-        result.isDetected = false;
-        result.statusText = "Clear";
-        result.diagnosticMessage = "Path unobstructed (Area Clear)";
-    }
-
-    return result;
-}
-
-// ----------------------------------------------------------------------------
 // SUPABASE HTTPS REST UPLOAD
 // ----------------------------------------------------------------------------
-bool uploadReadingToSupabase(const SensorReading& reading) {
+bool uploadReadingToSupabase(const FireReading& reading) {
     WiFiClientSecure secureClient;
-    // For educational/lab prototype reliability, skip strict certificate validation
-    // to avoid certificate authority expiration halts on resource-constrained embedded systems.
-    secureClient.setInsecure();
+    secureClient.setInsecure(); // Laboratory prototype SSL bypass
 
     HTTPClient http;
-
-    // Build the Supabase REST endpoint URL for table detection_readings
     String endpointUrl = String(SUPABASE_URL) + "/rest/v1/detection_readings";
 
     if (!http.begin(secureClient, endpointUrl)) {
-        Serial.println("[HTTP] Unable to establish HTTPS connection to Supabase endpoint.");
+        Serial.println("[HTTP] Unable to establish HTTPS connection to Supabase.");
         return false;
     }
 
-    // Configure required REST API HTTP Headers
+    // Headers
     http.addHeader("Content-Type", "application/json");
     http.addHeader("apikey", SUPABASE_ANON_KEY);
     http.addHeader("Authorization", String("Bearer ") + SUPABASE_ANON_KEY);
-    // Prefer: return=minimal instructs PostgREST to return 201 Created with empty body,
-    // conserving embedded memory and network bandwidth.
     http.addHeader("Prefer", "return=minimal");
 
-    // Construct JSON Payload
+    // JSON Payload
+    // In database:
+    //   detected = true if fire detected, false if safe
+    //   distance_cm = flame intensity percentage (0.0 to 100.0)
+    //   sensor_status = "Fire Alert" or "Safe"
     StaticJsonDocument<256> doc;
-    if (reading.isValid) {
-        // Round to 2 decimal places for clean sensor logs
-        doc["distance_cm"] = serialized(String(reading.distanceCm, 2));
-    } else {
-        doc["distance_cm"] = nullptr; // JSON null matches Supabase NUMERIC NULL
-    }
-    doc["detected"] = reading.isDetected;
+    doc["distance_cm"] = serialized(String(reading.flameIntensity, 1));
+    doc["detected"] = reading.isFlameDetected;
     doc["sensor_status"] = reading.statusText;
 
     String jsonPayload;
     serializeJson(doc, jsonPayload);
 
-    // Execute HTTP POST
     int httpResponseCode = http.POST(jsonPayload);
-
     bool requestSucceeded = false;
+
     if (httpResponseCode == HTTP_CODE_CREATED || httpResponseCode == HTTP_CODE_OK || httpResponseCode == 204) {
         requestSucceeded = true;
     } else {
-        Serial.printf("[HTTP] POST failed. Status Code: %d\n", httpResponseCode);
+        Serial.printf("[HTTP] POST failed. Status: %d\n", httpResponseCode);
         if (httpResponseCode > 0) {
             String responseBody = http.getString();
             Serial.printf("[HTTP] Server Response: %s\n", responseBody.c_str());

@@ -3,29 +3,14 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="description" content="IoT People Detection and Monitoring System utilizing ESP32-S3, HC-SR04 Ultrasonic Sensor, Supabase, and Vercel." />
-  <title>People Detection & Monitoring System | ESP32-S3 IoT Dashboard</title>
+  <meta name="description" content="IoT Fire & Flame Detection and Monitoring System utilizing ESP32-S3, Flame Sensor, Buzzer, Supabase, and Vercel." />
+  <title>FireGuard IoT | ESP32-S3 Fire & Flame Detection System</title>
   
-  <!-- Modern Inter Font -->
+  <!-- Modern Inter & JetBrains Mono Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
   
-  <!-- Tailwind CSS Engine -->
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script>
-    tailwind.config = {
-      theme: {
-        extend: {
-          fontFamily: {
-            sans: ['Inter', 'sans-serif'],
-            mono: ['JetBrains Mono', 'monospace'],
-          }
-        }
-      }
-    }
-  </script>
-
   <link rel="stylesheet" href="./src/style.css" />
 </head>
 <body class="bg-slate-950 text-slate-100 min-h-screen antialiased flex flex-col md:flex-row">
@@ -33,12 +18,12 @@
   <!-- Mobile Header -->
   <header class="md:hidden flex items-center justify-between p-4 bg-slate-900 border-b border-slate-800 sticky top-0 z-50">
     <div class="flex items-center gap-3">
-      <div class="w-9 h-9 rounded-xl bg-blue-600/20 border border-blue-500/30 flex items-center justify-center text-blue-400">
-        <i data-lucide="radio" class="w-5 h-5"></i>
+      <div class="w-9 h-9 rounded-xl bg-rose-600/20 border border-rose-500/30 flex items-center justify-center text-rose-400">
+        <i data-lucide="flame" class="w-5 h-5"></i>
       </div>
       <div>
-        <h1 class="font-bold text-sm tracking-tight text-white">PeopleSense IoT</h1>
-        <p class="text-xs text-slate-400">ESP32-S3 • HC-SR04</p>
+        <h1 class="font-bold text-sm tracking-tight text-white">FireGuard IoT</h1>
+        <p class="text-xs text-slate-400">ESP32-S3 • Flame Sensor</p>
       </div>
     </div>
     <button id="mobile-menu-btn" class="p-2 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800" aria-label="Toggle Navigation">
@@ -51,14 +36,14 @@
     <div>
       <!-- Brand Logo & Platform Details -->
       <div class="flex items-center gap-3 pb-6 border-b border-slate-800">
-        <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white shadow-lg shadow-blue-500/20">
-          <i data-lucide="radio" class="w-5 h-5"></i>
+        <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-500 via-rose-600 to-red-600 flex items-center justify-center text-white shadow-lg shadow-rose-500/30">
+          <i data-lucide="flame" class="w-5 h-5"></i>
         </div>
         <div>
           <h1 class="font-bold text-base tracking-tight text-white flex items-center gap-1.5">
-            PeopleSense <span class="text-xs px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-400 border border-blue-500/30 font-mono">IoT</span>
+            FireGuard <span class="text-xs px-1.5 py-0.5 rounded bg-rose-500/20 text-rose-400 border border-rose-500/30 font-mono">FIRE</span>
           </h1>
-          <p class="text-xs text-slate-400">Distance-Based Monitor</p>
+          <p class="text-xs text-slate-400">Flame & Emergency Monitor</p>
         </div>
       </div>
 
@@ -70,13 +55,13 @@
         </button>
 
         <button data-section="monitor" class="nav-item w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium transition-all">
-          <i data-lucide="activity" class="w-4 h-4"></i>
-          <span>Detection Monitor</span>
+          <i data-lucide="bell" class="w-4 h-4"></i>
+          <span>Fire Alarm Monitor</span>
         </button>
 
         <button data-section="history" class="nav-item w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium transition-all">
           <i data-lucide="history" class="w-4 h-4"></i>
-          <span>Detection History</span>
+          <span>Incident History</span>
         </button>
 
         <button data-section="system" class="nav-item w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium transition-all">
@@ -103,7 +88,7 @@
       </div>
 
       <div class="flex items-center justify-between text-xs text-slate-500 px-1">
-        <span>Academic Demo v1.0</span>
+        <span>FireGuard v2.0</span>
         <button id="open-config-btn" class="hover:text-slate-300 flex items-center gap-1">
           <i data-lucide="settings" class="w-3.5 h-3.5"></i>
           <span>API Config</span>
@@ -123,31 +108,31 @@
       <div>
         <h2 id="current-section-title" class="text-lg font-bold text-white tracking-tight">System Overview</h2>
         <p class="text-xs text-slate-400 flex items-center gap-2">
-          <span>Real-time Telemetry Feed</span>
+          <span>Real-time Flame Telemetry</span>
           <span class="text-slate-600">•</span>
           <span id="last-sync-time" class="text-slate-400 font-mono">Syncing...</span>
         </p>
       </div>
 
       <div class="flex items-center gap-2.5">
-        <!-- Audio alert toggle -->
-        <button id="audio-alert-btn" class="px-3 py-1.5 rounded-lg border border-slate-800 bg-slate-900 hover:bg-slate-800 text-slate-400 hover:text-white text-xs font-medium flex items-center gap-1.5 transition-colors" title="Toggle Audio Chime">
+        <!-- Audio siren toggle -->
+        <button id="audio-alert-btn" class="px-3 py-1.5 rounded-lg border border-slate-800 bg-slate-900 hover:bg-slate-800 text-slate-400 hover:text-white text-xs font-medium flex items-center gap-1.5 transition-colors" title="Toggle Emergency Siren Sound">
           <i data-lucide="volume-2" class="w-3.5 h-3.5"></i>
-          <span id="audio-alert-text">Sound: OFF</span>
+          <span id="audio-alert-text">Siren: OFF</span>
         </button>
 
         <!-- Refresh Button -->
-        <button id="manual-refresh-btn" class="px-3.5 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-medium flex items-center gap-1.5 shadow-sm transition-all shadow-blue-500/20 active:scale-95">
+        <button id="manual-refresh-btn" class="px-3.5 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-500 text-white text-xs font-medium flex items-center gap-1.5 shadow-sm transition-all shadow-rose-500/20 active:scale-95">
           <i data-lucide="refresh-cw" class="w-3.5 h-3.5" id="refresh-icon"></i>
           <span>Refresh Data</span>
         </button>
       </div>
     </div>
 
-    <!-- Alert / System Banner -->
-    <div id="status-banner" class="hidden px-6 py-2.5 text-xs font-medium border-b flex items-center justify-between">
+    <!-- Alert / Emergency Flashing Banner -->
+    <div id="status-banner" class="hidden px-6 py-3 text-xs font-semibold border-b flex items-center justify-between transition-all">
       <div class="flex items-center gap-2" id="status-banner-content">
-        <!-- Dynamic message -->
+        <!-- Dynamic fire alert or safe message -->
       </div>
       <button id="close-banner-btn" class="text-slate-400 hover:text-white">
         <i data-lucide="x" class="w-4 h-4"></i>
@@ -165,12 +150,12 @@
         <!-- 4 Summary KPI Cards -->
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           
-          <!-- Card 1: Detection State -->
+          <!-- Card 1: Fire Alert Status -->
           <div class="kpi-card relative overflow-hidden bg-slate-900/90 border border-slate-800 rounded-2xl p-5 shadow-sm">
             <div class="flex items-center justify-between mb-3">
-              <span class="text-xs font-medium text-slate-400 uppercase tracking-wider">Detection Status</span>
+              <span class="text-xs font-medium text-slate-400 uppercase tracking-wider">Fire Status</span>
               <div id="kpi-status-icon-wrap" class="w-8 h-8 rounded-lg bg-slate-800 flex items-center justify-center text-slate-400">
-                <i data-lucide="user-check" class="w-4 h-4"></i>
+                <i data-lucide="shield-check" class="w-4 h-4"></i>
               </div>
             </div>
             <div id="kpi-status-value" class="text-2xl font-bold text-white tracking-tight flex items-center gap-2">
@@ -182,30 +167,30 @@
             <div id="kpi-status-accent" class="absolute bottom-0 left-0 right-0 h-1 bg-slate-800"></div>
           </div>
 
-          <!-- Card 2: Current Distance -->
+          <!-- Card 2: Flame Intensity Level -->
           <div class="kpi-card bg-slate-900/90 border border-slate-800 rounded-2xl p-5 shadow-sm">
             <div class="flex items-center justify-between mb-3">
-              <span class="text-xs font-medium text-slate-400 uppercase tracking-wider">Current Distance</span>
-              <div class="w-8 h-8 rounded-lg bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-400">
-                <i data-lucide="ruler" class="w-4 h-4"></i>
+              <span class="text-xs font-medium text-slate-400 uppercase tracking-wider">Flame Intensity</span>
+              <div class="w-8 h-8 rounded-lg bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400">
+                <i data-lucide="flame" class="w-4 h-4"></i>
               </div>
             </div>
             <div class="text-2xl font-bold text-white tracking-tight flex items-baseline gap-1.5">
-              <span id="kpi-distance-value" class="font-mono">--.-</span>
-              <span class="text-sm font-normal text-slate-400">cm</span>
+              <span id="kpi-distance-value" class="font-mono">0.0</span>
+              <span class="text-sm font-normal text-slate-400">%</span>
             </div>
             <div class="mt-3">
               <div class="flex justify-between text-xs text-slate-400 mb-1">
-                <span>Proximity Range</span>
-                <span id="kpi-distance-meter-label">0 - 400 cm</span>
+                <span>Thermal Radiation</span>
+                <span id="kpi-distance-meter-label">0% - 100%</span>
               </div>
               <div class="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden">
-                <div id="kpi-distance-bar" class="bg-blue-500 h-full w-0 transition-all duration-300"></div>
+                <div id="kpi-distance-bar" class="bg-gradient-to-r from-emerald-500 via-amber-500 to-rose-600 h-full w-0 transition-all duration-300"></div>
               </div>
             </div>
           </div>
 
-          <!-- Card 3: Hardware Connectivity -->
+          <!-- Card 3: Hardware Sensor Node -->
           <div class="kpi-card bg-slate-900/90 border border-slate-800 rounded-2xl p-5 shadow-sm">
             <div class="flex items-center justify-between mb-3">
               <span class="text-xs font-medium text-slate-400 uppercase tracking-wider">Sensor Node</span>
@@ -222,11 +207,11 @@
             </p>
           </div>
 
-          <!-- Card 4: Total Logged Readings -->
+          <!-- Card 4: Total Logged Events -->
           <div class="kpi-card bg-slate-900/90 border border-slate-800 rounded-2xl p-5 shadow-sm">
             <div class="flex items-center justify-between mb-3">
               <span class="text-xs font-medium text-slate-400 uppercase tracking-wider">Total Readings</span>
-              <div class="w-8 h-8 rounded-lg bg-purple-500/10 border border-purple-500/20 flex items-center justify-center text-purple-400">
+              <div class="w-8 h-8 rounded-lg bg-rose-500/10 border border-rose-500/20 flex items-center justify-center text-rose-400">
                 <i data-lucide="database" class="w-4 h-4"></i>
               </div>
             </div>
@@ -235,106 +220,104 @@
             </div>
             <p class="text-xs text-slate-400 mt-2 flex items-center gap-1.5">
               <i data-lucide="clock" class="w-3.5 h-3.5 text-slate-500"></i>
-              <span>Poll cycle: 2000 ms</span>
+              <span>Sampling: 2000 ms</span>
             </p>
           </div>
 
         </div>
 
-        <!-- Quick Summary & Quick Graph / Gauge Section -->
+        <!-- Flame Telemetry Visualizer & Fire Logic -->
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <!-- Live Ultrasonic Radar Preview -->
+          
+          <!-- Live Thermal Visualizer -->
           <div class="lg:col-span-2 bg-slate-900/90 border border-slate-800 rounded-2xl p-6">
             <div class="flex items-center justify-between mb-5">
               <div>
-                <h3 class="font-bold text-white text-base">Ultrasonic Radar Telemetry</h3>
-                <p class="text-xs text-slate-400">Live spatial distance tracking from the HC-SR04 transducer</p>
+                <h3 class="font-bold text-white text-base">Thermal Flame Spectrum Telemetry</h3>
+                <p class="text-xs text-slate-400">Real-time infrared flame emission monitored by ESP32-S3</p>
               </div>
               <span id="radar-live-badge" class="px-2.5 py-1 rounded-full text-xs font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 flex items-center gap-1.5">
                 <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping"></span>
-                Live Stream
+                Monitoring Active
               </span>
             </div>
 
-            <!-- Interactive Radar Canvas Wrapper -->
+            <!-- Thermal Radiation Display Canvas -->
             <div class="relative w-full aspect-[16/9] max-h-80 bg-slate-950/80 rounded-xl border border-slate-800/80 flex items-center justify-center overflow-hidden">
-              <!-- Radial Grid Concentric Rings -->
+              <!-- Radial Grid Concentric Heat Rings -->
               <div class="absolute inset-0 flex items-center justify-center pointer-events-none">
                 <div class="w-72 h-72 rounded-full border border-slate-800/60"></div>
                 <div class="absolute w-56 h-56 rounded-full border border-slate-800/80"></div>
                 <div class="absolute w-40 h-40 rounded-full border border-slate-700/60"></div>
                 <div class="absolute w-24 h-24 rounded-full border border-slate-700/80"></div>
-                <!-- Crosshairs -->
-                <div class="absolute w-full h-[1px] bg-slate-800/40"></div>
-                <div class="absolute h-full w-[1px] bg-slate-800/40"></div>
                 <!-- Threshold Ring (Dynamic) -->
-                <div id="radar-threshold-ring" class="absolute w-36 h-36 rounded-full border-2 border-dashed border-amber-500/40 transition-all duration-300"></div>
+                <div id="radar-threshold-ring" class="absolute w-36 h-36 rounded-full border-2 border-dashed border-rose-500/40 transition-all duration-300"></div>
               </div>
 
               <!-- Radar Beam Sweep Animation -->
               <div class="radar-sweep-beam"></div>
 
-              <!-- Ultrasonic Emitter Center Marker -->
+              <!-- Center Sensor Node Marker -->
               <div class="relative z-10 flex flex-col items-center">
-                <div class="w-7 h-7 rounded-full bg-blue-600 border-2 border-white flex items-center justify-center text-white shadow-lg shadow-blue-500/50">
-                  <i data-lucide="radio" class="w-3.5 h-3.5"></i>
+                <div id="thermal-center-icon" class="w-8 h-8 rounded-full bg-rose-600 border-2 border-white flex items-center justify-center text-white shadow-lg shadow-rose-500/50">
+                  <i data-lucide="flame" class="w-4 h-4"></i>
                 </div>
                 <span class="text-[10px] font-mono text-slate-400 mt-1">ESP32-S3</span>
               </div>
 
-              <!-- Detected Object Blip (Plotted dynamically) -->
+              <!-- Detected Flame Heat Blip -->
               <div id="radar-blip" class="absolute z-10 transform -translate-x-1/2 -translate-y-1/2 transition-all duration-500 opacity-0 pointer-events-none">
                 <div class="relative flex items-center justify-center">
-                  <span id="radar-blip-ping" class="absolute w-6 h-6 rounded-full bg-emerald-500/40 animate-ping"></span>
-                  <span id="radar-blip-dot" class="w-3.5 h-3.5 rounded-full bg-emerald-500 border border-white shadow-lg"></span>
+                  <span id="radar-blip-ping" class="absolute w-8 h-8 rounded-full bg-rose-500/40 animate-ping"></span>
+                  <span id="radar-blip-dot" class="w-4 h-4 rounded-full bg-rose-500 border border-white shadow-lg"></span>
                 </div>
-                <span id="radar-blip-tag" class="absolute top-4 left-1/2 -translate-x-1/2 whitespace-nowrap px-1.5 py-0.5 rounded bg-slate-900/90 border border-slate-700 text-[10px] font-mono text-white">
-                  0.0 cm
+                <span id="radar-blip-tag" class="absolute top-5 left-1/2 -translate-x-1/2 whitespace-nowrap px-1.5 py-0.5 rounded bg-slate-900/90 border border-slate-700 text-[10px] font-mono text-white">
+                  0.0 %
                 </span>
               </div>
 
               <!-- Bottom Overlay Stats -->
               <div class="absolute bottom-3 left-4 right-4 flex items-center justify-between text-xs text-slate-400 bg-slate-900/80 px-3 py-1.5 rounded-lg border border-slate-800/60 backdrop-blur-sm">
-                <div>Threshold: <span id="radar-threshold-label" class="text-amber-400 font-mono">50.0 cm</span></div>
-                <div>Sensor Status: <span id="radar-status-label" class="text-white font-medium">Checking</span></div>
-                <div>Distance: <span id="radar-distance-label" class="text-blue-400 font-mono">-- cm</span></div>
+                <div>Alert Threshold: <span id="radar-threshold-label" class="text-amber-400 font-mono">40.0 %</span></div>
+                <div>Status: <span id="radar-status-label" class="text-white font-medium">Safe</span></div>
+                <div>Intensity: <span id="radar-distance-label" class="text-rose-400 font-mono">0.0 %</span></div>
               </div>
             </div>
           </div>
 
-          <!-- Academic Lab Notes & Detection Rules -->
+          <!-- Fire Classification Logic & Safety Rules -->
           <div class="bg-slate-900/90 border border-slate-800 rounded-2xl p-6 flex flex-col justify-between">
             <div>
-              <div class="flex items-center gap-2 mb-3 text-blue-400">
-                <i data-lucide="info" class="w-4 h-4"></i>
-                <h4 class="font-bold text-sm text-white uppercase tracking-wider">Classification Logic</h4>
+              <div class="flex items-center gap-2 mb-3 text-rose-400">
+                <i data-lucide="alert-triangle" class="w-4 h-4"></i>
+                <h4 class="font-bold text-sm text-white uppercase tracking-wider">Fire Alert Logic</h4>
               </div>
               <p class="text-xs text-slate-400 leading-relaxed mb-4">
-                The ultrasonic sensor emits high-frequency sound waves (40&nbsp;kHz) and measures the round-trip echo reflection time.
+                The flame sensor detects infrared light emitted by open flames in the 760&nbsp;nm to 1100&nbsp;nm wavelength spectrum.
               </p>
 
               <div class="space-y-3">
                 <div class="p-3 rounded-xl bg-slate-950/60 border border-slate-800 flex items-start gap-3">
-                  <div class="w-2.5 h-2.5 rounded-full bg-emerald-500 mt-1 flex-shrink-0"></div>
+                  <div class="w-2.5 h-2.5 rounded-full bg-rose-500 mt-1 flex-shrink-0 animate-pulse"></div>
                   <div>
-                    <div class="text-xs font-semibold text-white">Detected (≤ Threshold)</div>
-                    <div class="text-[11px] text-slate-400">Object surface reflected within the configured proximity boundary.</div>
+                    <div class="text-xs font-semibold text-rose-400">Fire Alert (Flame Detected)</div>
+                    <div class="text-[11px] text-slate-400">Digital trigger DO active (LOW) or Analog flame intensity exceeds alert threshold. Emergency buzzer fires siren.</div>
                   </div>
                 </div>
 
                 <div class="p-3 rounded-xl bg-slate-950/60 border border-slate-800 flex items-start gap-3">
-                  <div class="w-2.5 h-2.5 rounded-full bg-blue-500 mt-1 flex-shrink-0"></div>
+                  <div class="w-2.5 h-2.5 rounded-full bg-emerald-500 mt-1 flex-shrink-0"></div>
                   <div>
-                    <div class="text-xs font-semibold text-white">Clear (&gt; Threshold)</div>
-                    <div class="text-[11px] text-slate-400">Path unobstructed within threshold distance (up to 400 cm).</div>
+                    <div class="text-xs font-semibold text-emerald-400">Safe (Normal Environment)</div>
+                    <div class="text-[11px] text-slate-400">No open flame or anomalous infrared heat signature detected. Buzzer silent.</div>
                   </div>
                 </div>
 
                 <div class="p-3 rounded-xl bg-slate-950/60 border border-slate-800 flex items-start gap-3">
                   <div class="w-2.5 h-2.5 rounded-full bg-amber-500 mt-1 flex-shrink-0"></div>
                   <div>
-                    <div class="text-xs font-semibold text-white">No Reading</div>
-                    <div class="text-[11px] text-slate-400">Sensor timed out, disconnected, or physical obstacle out of bounds (&lt;2cm or &gt;400cm).</div>
+                    <div class="text-xs font-semibold text-amber-400">Warning (Elevated IR Level)</div>
+                    <div class="text-[11px] text-slate-400">Moderate thermal source or sunlight interference approaching threshold.</div>
                   </div>
                 </div>
               </div>
@@ -342,7 +325,7 @@
 
             <div class="mt-4 pt-4 border-t border-slate-800/80">
               <p class="text-[11px] text-slate-500 italic">
-                * Note: Acoustic distance monitoring detects reflective surfaces and does not claim biological person classification.
+                * Sensor calibrated for rapid detection of candles, lighters, and open fires within 20cm – 100cm.
               </p>
             </div>
           </div>
@@ -351,47 +334,46 @@
       </section>
 
       <!-- =================================================================== -->
-      <!-- SECTION B: DETECTION MONITOR                                        -->
+      <!-- SECTION B: FIRE ALARM MONITOR                                       -->
       <!-- =================================================================== -->
       <section id="section-monitor" class="dashboard-section hidden space-y-6">
         
         <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
           
-          <!-- Primary Large Visual Indicator Column -->
+          <!-- Emergency Indicator Hero Ring -->
           <div class="lg:col-span-7 bg-slate-900/90 border border-slate-800 rounded-2xl p-6 flex flex-col justify-between">
             <div class="flex items-center justify-between mb-4">
               <div>
-                <h3 class="font-bold text-white text-base">Real-time Detection Monitor</h3>
-                <p class="text-xs text-slate-400">High-visibility laboratory state display</p>
+                <h3 class="font-bold text-white text-base">Real-time Fire Alarm Monitor</h3>
+                <p class="text-xs text-slate-400">High-visibility emergency fire status indicator</p>
               </div>
               <span id="monitor-sync-badge" class="text-xs font-mono text-slate-400 flex items-center gap-1.5">
-                <span class="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></span>
-                2000 ms Poll
+                <span class="w-2 h-2 rounded-full bg-rose-500 animate-pulse"></span>
+                Active Telemetry
               </span>
             </div>
 
-            <!-- Massive State Visual Indicator -->
+            <!-- Giant Radial State Ring -->
             <div class="py-8 flex flex-col items-center justify-center">
               
-              <!-- Giant Glowing Radial State Ring -->
               <div id="monitor-hero-ring" class="relative w-52 h-52 sm:w-64 sm:h-64 rounded-full border-4 border-slate-800 flex flex-col items-center justify-center text-center transition-all duration-500 shadow-2xl">
                 <!-- Background Pulse Effect -->
-                <div id="monitor-pulse-halo" class="absolute inset-0 rounded-full bg-slate-800/20 animate-ping pointer-events-none"></div>
+                <div id="monitor-pulse-halo" class="absolute inset-0 rounded-full bg-slate-800/20 pointer-events-none"></div>
 
                 <!-- State Icon -->
                 <div id="monitor-state-icon" class="text-slate-400 mb-2 transition-transform duration-300">
-                  <i data-lucide="help-circle" class="w-12 h-12"></i>
+                  <i data-lucide="shield-check" class="w-12 h-12"></i>
                 </div>
 
                 <!-- Status Label -->
                 <div id="monitor-hero-status" class="text-xl sm:text-2xl font-extrabold tracking-tight text-white uppercase px-4">
-                  Standby
+                  Normal / Safe
                 </div>
 
-                <!-- Distance Large Text -->
+                <!-- Intensity Text -->
                 <div class="mt-2 text-slate-400 font-mono text-sm flex items-baseline gap-1">
-                  <span id="monitor-hero-distance" class="text-2xl sm:text-3xl font-bold text-white">--.-</span>
-                  <span>cm</span>
+                  <span id="monitor-hero-distance" class="text-2xl sm:text-3xl font-bold text-white">0.0</span>
+                  <span>% Intensity</span>
                 </div>
               </div>
 
@@ -399,105 +381,103 @@
               <div class="flex flex-wrap items-center justify-center gap-2 mt-8">
                 <div id="badge-detected" class="px-3 py-1 rounded-full text-xs font-medium bg-slate-800/60 text-slate-500 border border-slate-700/50 flex items-center gap-1.5 transition-all">
                   <span class="w-1.5 h-1.5 rounded-full bg-slate-600"></span>
-                  Person Detected
+                  Fire Alert
                 </div>
                 <div id="badge-clear" class="px-3 py-1 rounded-full text-xs font-medium bg-slate-800/60 text-slate-500 border border-slate-700/50 flex items-center gap-1.5 transition-all">
                   <span class="w-1.5 h-1.5 rounded-full bg-slate-600"></span>
-                  Area Clear
+                  Safe
                 </div>
                 <div id="badge-noreading" class="px-3 py-1 rounded-full text-xs font-medium bg-slate-800/60 text-slate-500 border border-slate-700/50 flex items-center gap-1.5 transition-all">
                   <span class="w-1.5 h-1.5 rounded-full bg-slate-600"></span>
-                  No Reading
+                  Warning
                 </div>
               </div>
 
             </div>
 
-            <!-- Distance vs Threshold Comparison Bar -->
+            <!-- Intensity Comparison Bar -->
             <div class="bg-slate-950/60 rounded-xl p-4 border border-slate-800">
               <div class="flex items-center justify-between text-xs mb-2">
-                <span class="text-slate-400">Distance vs Detection Limit</span>
+                <span class="text-slate-400">Flame Intensity vs Alert Threshold</span>
                 <span class="text-slate-300 font-mono">
-                  <span id="bar-dist-val" class="font-bold text-white">--</span> / 
-                  <span id="bar-thresh-val" class="text-amber-400 font-semibold">50.0</span> cm
+                  <span id="bar-dist-val" class="font-bold text-white">0.0</span> / 
+                  <span id="bar-thresh-val" class="text-amber-400 font-semibold">40.0</span> %
                 </span>
               </div>
               <div class="relative w-full h-3 bg-slate-800 rounded-full overflow-hidden">
-                <!-- Current distance fill -->
-                <div id="distance-progress-fill" class="h-full bg-blue-500 transition-all duration-300 w-0"></div>
-                <!-- Threshold target line marker -->
-                <div id="distance-threshold-marker" class="absolute top-0 bottom-0 w-1 bg-amber-400 shadow-md transition-all duration-200" style="left: 12.5%;"></div>
+                <div id="distance-progress-fill" class="h-full bg-gradient-to-r from-emerald-500 via-amber-500 to-rose-600 transition-all duration-300 w-0"></div>
+                <div id="distance-threshold-marker" class="absolute top-0 bottom-0 w-1 bg-amber-400 shadow-md transition-all duration-200" style="left: 40%;"></div>
               </div>
               <div class="flex justify-between text-[10px] text-slate-500 mt-1 font-mono">
-                <span>0 cm</span>
-                <span id="thresh-pos-label" class="text-amber-400">Threshold (50 cm)</span>
-                <span>400 cm</span>
+                <span>0% (Safe)</span>
+                <span id="thresh-pos-label" class="text-amber-400">Alert Limit (40%)</span>
+                <span>100% (Critical)</span>
               </div>
             </div>
 
           </div>
 
-          <!-- Configuration & Laboratory Controls Column -->
+          <!-- Configuration & Fire Alarm Controls -->
           <div class="lg:col-span-5 space-y-6">
             
-            <!-- Configurable Detection Threshold Card -->
+            <!-- Configurable Flame Sensitivity Card -->
             <div class="bg-slate-900/90 border border-slate-800 rounded-2xl p-6">
-              <div class="flex items-center gap-2 mb-2 text-amber-400">
+              <div class="flex items-center gap-2 mb-2 text-rose-400">
                 <i data-lucide="sliders" class="w-4 h-4"></i>
-                <h4 class="font-bold text-base text-white">Detection Threshold</h4>
+                <h4 class="font-bold text-base text-white">Flame Sensitivity Threshold</h4>
               </div>
               <p class="text-xs text-slate-400 mb-5 leading-relaxed">
-                Adjust the distance boundary below which an object is flagged as a detected presence.
+                Adjust the flame intensity threshold percentage above which a fire alarm is triggered.
               </p>
 
               <!-- Threshold Slider -->
               <div class="space-y-4">
                 <div class="flex items-center justify-between">
-                  <label for="threshold-slider" class="text-xs text-slate-300 font-medium">Trigger Distance</label>
+                  <label for="threshold-slider" class="text-xs text-slate-300 font-medium">Trigger Intensity</label>
                   <div class="flex items-center gap-1 bg-slate-950 px-2.5 py-1 rounded-lg border border-slate-800">
-                    <input type="number" id="threshold-input" min="5" max="350" step="1" value="50" class="w-16 bg-transparent text-right font-mono text-sm text-white font-semibold focus:outline-none" />
-                    <span class="text-xs text-slate-400 font-mono">cm</span>
+                    <input type="number" id="threshold-input" min="10" max="90" step="5" value="40" class="w-16 bg-transparent text-right font-mono text-sm text-white font-semibold focus:outline-none" />
+                    <span class="text-xs text-slate-400 font-mono">%</span>
                   </div>
                 </div>
 
-                <input type="range" id="threshold-slider" min="5" max="300" step="5" value="50" class="w-full h-2 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-blue-500" />
+                <input type="range" id="threshold-slider" min="10" max="90" step="5" value="40" class="w-full h-2 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-rose-500" />
 
                 <div class="flex justify-between text-[11px] text-slate-500 font-mono">
-                  <span>5 cm (Close)</span>
-                  <span>150 cm</span>
-                  <span>300 cm (Long range)</span>
+                  <span>10% (Ultra-sensitive)</span>
+                  <span>40% (Default)</span>
+                  <span>90% (Near flame only)</span>
                 </div>
 
                 <div class="p-3 rounded-xl bg-slate-950/80 border border-slate-800/80 text-xs text-slate-400">
-                  <div class="font-medium text-slate-300 mb-1">Preset Configurations:</div>
+                  <div class="font-medium text-slate-300 mb-1">Sensitivity Presets:</div>
                   <div class="flex flex-wrap gap-2 pt-1">
-                    <button class="preset-btn px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-[11px] text-white" data-val="30">Desk (30 cm)</button>
-                    <button class="preset-btn px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-[11px] text-white" data-val="50">Lab Bench (50 cm)</button>
-                    <button class="preset-btn px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-[11px] text-white" data-val="100">Doorway (100 cm)</button>
-                    <button class="preset-btn px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-[11px] text-white" data-val="200">Hallway (200 cm)</button>
+                    <button class="preset-btn px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-[11px] text-white" data-val="25">High (25%)</button>
+                    <button class="preset-btn px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-[11px] text-white" data-val="40">Standard (40%)</button>
+                    <button class="preset-btn px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-[11px] text-white" data-val="60">Medium (60%)</button>
+                    <button class="preset-btn px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-[11px] text-white" data-val="80">Low (80%)</button>
                   </div>
                 </div>
               </div>
             </div>
 
-            <!-- Alarm & Audio Alert Setting Card -->
+            <!-- Siren & Audio Alert Settings -->
             <div class="bg-slate-900/90 border border-slate-800 rounded-2xl p-6">
               <div class="flex items-center justify-between mb-4">
-                <div class="flex items-center gap-2 text-blue-400">
+                <div class="flex items-center gap-2 text-rose-400">
                   <i data-lucide="bell" class="w-4 h-4"></i>
-                  <h4 class="font-bold text-base text-white">Audio & Alert Feedback</h4>
+                  <h4 class="font-bold text-base text-white">Browser Emergency Siren</h4>
                 </div>
                 <label class="relative inline-flex items-center cursor-pointer">
                   <input type="checkbox" id="audio-toggle-switch" class="sr-only peer">
-                  <div class="w-11 h-6 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                  <div class="w-11 h-6 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-rose-600"></div>
                 </label>
               </div>
               <p class="text-xs text-slate-400 leading-relaxed mb-3">
-                Plays a gentle laboratory notification chime whenever the sensor transitions from <em>Clear</em> to <em>Person Detected</em>.
+                Sounds an emergency fire siren chime directly in your browser whenever a <em>Fire Alert</em> occurs.
               </p>
               <button id="test-audio-btn" class="w-full py-2 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-medium text-slate-300 flex items-center justify-center gap-2 transition-colors">
                 <i data-lucide="play" class="w-3.5 h-3.5"></i>
-                <span>Test Audio Chime</span>
+                <span>Test Emergency Siren</span>
               </button>
             </div>
 
@@ -508,23 +488,22 @@
       </section>
 
       <!-- =================================================================== -->
-      <!-- SECTION C: DETECTION HISTORY                                        -->
+      <!-- SECTION C: INCIDENT HISTORY                                         -->
       <!-- =================================================================== -->
       <section id="section-history" class="dashboard-section hidden space-y-6">
         
         <div class="bg-slate-900/90 border border-slate-800 rounded-2xl p-6">
-          <!-- History Header & Controls -->
           <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-6 border-b border-slate-800">
             <div>
-              <h3 class="font-bold text-white text-base">Historical Detection Log</h3>
-              <p class="text-xs text-slate-400">Timestamped sensor transmissions retrieved from Supabase PostgreSQL</p>
+              <h3 class="font-bold text-white text-base">Historical Fire & Flame Telemetry Log</h3>
+              <p class="text-xs text-slate-400">Timestamped sensor records stored in Supabase PostgreSQL database</p>
             </div>
 
             <div class="flex flex-wrap items-center gap-3">
               <!-- Limit Selector -->
               <div class="flex items-center gap-2 text-xs text-slate-400">
                 <span>Display:</span>
-                <select id="history-limit-select" class="bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-blue-500">
+                <select id="history-limit-select" class="bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-rose-500">
                   <option value="15">15 records</option>
                   <option value="30" selected>30 records</option>
                   <option value="50">50 records</option>
@@ -533,11 +512,10 @@
               </div>
 
               <!-- Filter Selector -->
-              <select id="history-filter-select" class="bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-blue-500">
-                <option value="ALL">All States</option>
-                <option value="DETECTED">Detected Only</option>
-                <option value="CLEAR">Clear Only</option>
-                <option value="NO_READING">No Reading Only</option>
+              <select id="history-filter-select" class="bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-rose-500">
+                <option value="ALL">All Events</option>
+                <option value="DETECTED">Fire Alerts Only</option>
+                <option value="CLEAR">Safe Only</option>
               </select>
 
               <!-- Export CSV Button -->
@@ -555,19 +533,18 @@
                 <tr class="border-b border-slate-800 text-slate-400 uppercase tracking-wider font-semibold">
                   <th class="py-3 px-4"># ID</th>
                   <th class="py-3 px-4">Timestamp (Local)</th>
-                  <th class="py-3 px-4">Distance (cm)</th>
-                  <th class="py-3 px-4">Detection Result</th>
-                  <th class="py-3 px-4">Sensor Status</th>
+                  <th class="py-3 px-4">Flame Intensity</th>
+                  <th class="py-3 px-4">Fire Status</th>
+                  <th class="py-3 px-4">Classification</th>
                   <th class="py-3 px-4 text-right">Age</th>
                 </tr>
               </thead>
               <tbody id="history-table-body" class="divide-y divide-slate-800/60 font-mono">
-                <!-- Dynamically generated rows -->
                 <tr>
                   <td colspan="6" class="py-8 text-center text-slate-500 font-sans">
                     <div class="flex flex-col items-center justify-center gap-2">
-                      <div class="w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
-                      <span>Connecting to Supabase database...</span>
+                      <div class="w-6 h-6 border-2 border-rose-500 border-t-transparent rounded-full animate-spin"></div>
+                      <span>Connecting to Supabase fire records...</span>
                     </div>
                   </td>
                 </tr>
@@ -575,7 +552,7 @@
             </table>
           </div>
 
-          <!-- History Table Pagination & Info -->
+          <!-- Pagination -->
           <div class="flex flex-col sm:flex-row items-center justify-between gap-4 mt-6 pt-4 border-t border-slate-800/80 text-xs text-slate-400">
             <div id="history-pagination-info">
               Showing 0 historical records
@@ -602,14 +579,14 @@
         
         <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
           
-          <!-- Hardware Specifications -->
+          <!-- Hardware Architecture -->
           <div class="bg-slate-900/90 border border-slate-800 rounded-2xl p-6">
-            <div class="flex items-center gap-2.5 mb-4 text-blue-400">
+            <div class="flex items-center gap-2.5 mb-4 text-rose-400">
               <i data-lucide="cpu" class="w-5 h-5"></i>
               <h3 class="font-bold text-white text-base">Hardware Architecture</h3>
             </div>
             <p class="text-xs text-slate-400 mb-4">
-              Physical node hardware configuration for laboratory sensor deployment.
+              Physical node hardware configuration for IoT fire detection deployment.
             </p>
 
             <dl class="space-y-3 text-xs">
@@ -618,24 +595,24 @@
                 <dd class="text-white font-medium">ESP32-S3 (Dual Xtensa LX7 @ 240MHz)</dd>
               </div>
               <div class="flex justify-between py-2 border-b border-slate-800/80">
-                <dt class="text-slate-400">Ultrasonic Sensor</dt>
-                <dd class="text-white font-medium">HC-SR04 (40 kHz Acoustic Transducer)</dd>
+                <dt class="text-slate-400">Fire / Flame Sensor</dt>
+                <dd class="text-white font-medium">IR Flame Sensor Module (LM393 Comparator)</dd>
+              </div>
+              <div class="flex justify-between py-2 border-b border-slate-800/80">
+                <dt class="text-slate-400">Detection Spectrum</dt>
+                <dd class="text-rose-400 font-mono">760 nm to 1100 nm (Infrared Flame Band)</dd>
               </div>
               <div class="flex justify-between py-2 border-b border-slate-800/80">
                 <dt class="text-slate-400">Operating Voltage</dt>
-                <dd class="text-white font-medium">ESP32-S3: 3.3V / HC-SR04: 5.0V</dd>
+                <dd class="text-emerald-400 font-medium">ESP32-S3: 3.3V / Flame Sensor: 3.3V - 5V</dd>
               </div>
               <div class="flex justify-between py-2 border-b border-slate-800/80">
-                <dt class="text-slate-400">Echo Voltage Divider</dt>
-                <dd class="text-emerald-400 font-mono">1kΩ & 2kΩ (5V → 3.3V Step-down)</dd>
-              </div>
-              <div class="flex justify-between py-2 border-b border-slate-800/80">
-                <dt class="text-slate-400">Effective Range</dt>
-                <dd class="text-white font-medium">2.0 cm to 400.0 cm (±3mm accuracy)</dd>
+                <dt class="text-slate-400">Audible Alarm</dt>
+                <dd class="text-amber-400 font-medium">Piezo Buzzer (2800Hz / 1900Hz Dual Siren)</dd>
               </div>
               <div class="flex justify-between py-2">
-                <dt class="text-slate-400">Acoustic Speed Basis</dt>
-                <dd class="text-white font-medium">343 m/s (0.0343 cm/µs in ambient air)</dd>
+                <dt class="text-slate-400">Detection Angle / Range</dt>
+                <dd class="text-white font-medium">~60° Cone Angle (Up to 100 cm)</dd>
               </div>
             </dl>
           </div>
@@ -647,7 +624,7 @@
               <h3 class="font-bold text-white text-base">Cloud & Software Stack</h3>
             </div>
             <p class="text-xs text-slate-400 mb-4">
-              Integrated software ecosystem for embedded telemetry and monitoring.
+              Integrated software stack for real-time fire alert notification.
             </p>
 
             <dl class="space-y-3 text-xs">
@@ -661,11 +638,11 @@
               </div>
               <div class="flex justify-between py-2 border-b border-slate-800/80">
                 <dt class="text-slate-400">API Protocol</dt>
-                <dd class="text-white font-medium">HTTPS REST (PostgREST) + WSS Realtime</dd>
+                <dd class="text-white font-medium">HTTPS REST + Realtime WebSocket</dd>
               </div>
               <div class="flex justify-between py-2 border-b border-slate-800/80">
                 <dt class="text-slate-400">Telemetry Sample Rate</dt>
-                <dd class="text-blue-400 font-mono">2000 ms (Every 2 seconds)</dd>
+                <dd class="text-rose-400 font-mono">2000 ms (1000 ms on Active Fire Alert)</dd>
               </div>
               <div class="flex justify-between py-2 border-b border-slate-800/80">
                 <dt class="text-slate-400">Frontend Engine</dt>
@@ -684,14 +661,14 @@
         <div class="bg-slate-900/90 border border-slate-800 rounded-2xl p-6">
           <div class="flex items-center gap-2.5 mb-4 text-emerald-400">
             <i data-lucide="git-commit" class="w-5 h-5"></i>
-            <h3 class="font-bold text-white text-base">Hardware Pinout & Circuit Schematic</h3>
+            <h3 class="font-bold text-white text-base">Fire Detection Circuit Schematic & Pinout</h3>
           </div>
           
           <div class="overflow-x-auto">
             <table class="w-full text-left border-collapse text-xs">
               <thead>
                 <tr class="border-b border-slate-800 text-slate-400 uppercase tracking-wider font-semibold">
-                  <th class="py-2.5 px-3">HC-SR04 Pin</th>
+                  <th class="py-2.5 px-3">Flame Sensor Pin</th>
                   <th class="py-2.5 px-3">ESP32-S3 Connection</th>
                   <th class="py-2.5 px-3">Circuit Intermediary</th>
                   <th class="py-2.5 px-3">Signal Level</th>
@@ -701,38 +678,45 @@
               <tbody class="divide-y divide-slate-800/60 font-mono">
                 <tr>
                   <td class="py-2.5 px-3 font-bold text-white">VCC</td>
-                  <td class="py-2.5 px-3 text-amber-400">5V / VIN</td>
-                  <td class="py-2.5 px-3 text-slate-400">Direct wire</td>
-                  <td class="py-2.5 px-3 text-amber-400">5.0V DC</td>
-                  <td class="py-2.5 px-3 font-sans text-slate-300">Sensor power supply rail</td>
-                </tr>
-                <tr>
-                  <td class="py-2.5 px-3 font-bold text-white">TRIG</td>
-                  <td class="py-2.5 px-3 text-blue-400">GPIO 5</td>
-                  <td class="py-2.5 px-3 text-slate-400">Direct wire</td>
-                  <td class="py-2.5 px-3 text-blue-400">3.3V Logic</td>
-                  <td class="py-2.5 px-3 font-sans text-slate-300">10µs ultrasonic burst trigger output</td>
-                </tr>
-                <tr>
-                  <td class="py-2.5 px-3 font-bold text-white">ECHO</td>
-                  <td class="py-2.5 px-3 text-blue-400">GPIO 6</td>
-                  <td class="py-2.5 px-3 text-emerald-400">Voltage Divider (R1=1kΩ, R2=2kΩ)</td>
-                  <td class="py-2.5 px-3 text-emerald-400">5V → 3.3V</td>
-                  <td class="py-2.5 px-3 font-sans text-slate-300">Stepped-down echo pulse duration input</td>
-                </tr>
-                <tr>
-                  <td class="py-2.5 px-3 font-bold text-white">BUZZER (+)</td>
-                  <td class="py-2.5 px-3 text-amber-400">GPIO 7</td>
-                  <td class="py-2.5 px-3 text-slate-400">Direct wire (Active / Passive)</td>
-                  <td class="py-2.5 px-3 text-blue-400">3.3V Logic</td>
-                  <td class="py-2.5 px-3 font-sans text-slate-300">Audible alarm chirp on detection</td>
+                  <td class="py-2.5 px-3 text-emerald-400">3.3V (or 5V)</td>
+                  <td class="py-2.5 px-3 text-slate-400">Direct jumper wire</td>
+                  <td class="py-2.5 px-3 text-emerald-400">3.3V DC</td>
+                  <td class="py-2.5 px-3 font-sans text-slate-300">Sensor power supply</td>
                 </tr>
                 <tr>
                   <td class="py-2.5 px-3 font-bold text-white">GND</td>
                   <td class="py-2.5 px-3 text-slate-300">GND</td>
                   <td class="py-2.5 px-3 text-slate-400">Common ground tie</td>
                   <td class="py-2.5 px-3 text-slate-400">0V Reference</td>
-                  <td class="py-2.5 px-3 font-sans text-slate-300">System ground reference (Sensor & Buzzer -)</td>
+                  <td class="py-2.5 px-3 font-sans text-slate-300">System ground reference</td>
+                </tr>
+                <tr>
+                  <td class="py-2.5 px-3 font-bold text-white">DO (Digital Out)</td>
+                  <td class="py-2.5 px-3 text-rose-400">GPIO 4</td>
+                  <td class="py-2.5 px-3 text-slate-400">Direct wire (Internal Pullup)</td>
+                  <td class="py-2.5 px-3 text-rose-400">3.3V Logic (Active LOW)</td>
+                  <td class="py-2.5 px-3 font-sans text-slate-300">Instant digital flame threshold trigger</td>
+                </tr>
+                <tr>
+                  <td class="py-2.5 px-3 font-bold text-white">AO (Analog Out)</td>
+                  <td class="py-2.5 px-3 text-amber-400">GPIO 5</td>
+                  <td class="py-2.5 px-3 text-slate-400">Direct wire to ADC1_CH4</td>
+                  <td class="py-2.5 px-3 text-amber-400">0.0V - 3.3V Analog</td>
+                  <td class="py-2.5 px-3 font-sans text-slate-300">Real-time flame intensity measurement (0-4095)</td>
+                </tr>
+                <tr>
+                  <td class="py-2.5 px-3 font-bold text-white">BUZZER (+)</td>
+                  <td class="py-2.5 px-3 text-rose-400">GPIO 7</td>
+                  <td class="py-2.5 px-3 text-slate-400">Direct wire</td>
+                  <td class="py-2.5 px-3 text-rose-400">3.3V Logic</td>
+                  <td class="py-2.5 px-3 font-sans text-slate-300">Audible fire alarm emergency siren</td>
+                </tr>
+                <tr>
+                  <td class="py-2.5 px-3 font-bold text-white">BUZZER (-)</td>
+                  <td class="py-2.5 px-3 text-slate-300">GND</td>
+                  <td class="py-2.5 px-3 text-slate-400">Common ground tie</td>
+                  <td class="py-2.5 px-3 text-slate-400">0V Reference</td>
+                  <td class="py-2.5 px-3 font-sans text-slate-300">Buzzer cathode ground return</td>
                 </tr>
               </tbody>
             </table>
@@ -754,7 +738,7 @@
       </button>
 
       <div class="flex items-center gap-3 mb-4">
-        <div class="w-10 h-10 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-400">
+        <div class="w-10 h-10 rounded-xl bg-rose-500/10 border border-rose-500/20 flex items-center justify-center text-rose-400">
           <i data-lucide="key" class="w-5 h-5"></i>
         </div>
         <div>
@@ -764,18 +748,18 @@
       </div>
 
       <p class="text-xs text-slate-400 mb-4 leading-relaxed">
-        Credentials are primarily loaded from build environment variables (<code class="text-blue-400">VITE_SUPABASE_URL</code>). You may also supply or override them directly in your local browser session below:
+        Credentials are primarily loaded from build environment variables (<code class="text-rose-400">VITE_SUPABASE_URL</code>). You may also supply or override them directly in your local browser session below:
       </p>
 
       <form id="config-form" class="space-y-4">
         <div>
           <label class="block text-xs font-medium text-slate-300 mb-1">Supabase Project URL</label>
-          <input type="url" id="cfg-url" placeholder="https://xyzproject.supabase.co" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-blue-500 font-mono" required />
+          <input type="url" id="cfg-url" placeholder="https://xyzproject.supabase.co" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-rose-500 font-mono" required />
         </div>
 
         <div>
           <label class="block text-xs font-medium text-slate-300 mb-1">Supabase Anon Public Key</label>
-          <input type="text" id="cfg-key" placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI..." class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-blue-500 font-mono" required />
+          <input type="text" id="cfg-key" placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI..." class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-rose-500 font-mono" required />
         </div>
 
         <div class="p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-[11px] text-amber-300 flex items-start gap-2">
@@ -785,7 +769,7 @@
 
         <div class="flex items-center justify-end gap-2 pt-2">
           <button type="button" id="reset-config-btn" class="px-4 py-2 rounded-xl text-xs text-slate-400 hover:text-white">Reset Default</button>
-          <button type="submit" class="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-xs font-semibold text-white transition-colors shadow-lg shadow-blue-500/20">Save & Connect</button>
+          <button type="submit" class="px-5 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-xs font-semibold text-white transition-colors shadow-lg shadow-rose-500/20">Save & Connect</button>
         </div>
       </form>
     </div>

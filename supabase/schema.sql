@@ -1,31 +1,29 @@
 -- =============================================================================
--- PEOPLE DETECTION AND MONITORING SYSTEM - SUPABASE DATABASE SCHEMA
+-- FIRE AND FLAME DETECTION & EMERGENCY MONITORING SYSTEM - DATABASE SCHEMA
 -- =============================================================================
--- Description: Database schema and Row Level Security (RLS) policies for
---              storing distance measurements and object detection states
---              submitted by the ESP32-S3 microcontroller and retrieved
---              by the web dashboard.
+-- Description: PostgreSQL schema and Row Level Security (RLS) policies for
+--              storing flame sensor readings, fire alert classifications,
+--              and telemetry submitted by the ESP32-S3 microcontroller node.
 -- =============================================================================
 
 -- 1. Create table detection_readings
 CREATE TABLE IF NOT EXISTS public.detection_readings (
     id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    distance_cm NUMERIC(6, 2),
-    detected BOOLEAN NOT NULL DEFAULT false,
-    sensor_status TEXT NOT NULL,
+    distance_cm NUMERIC(6, 2),            -- Re-purposed for Flame Intensity % (0.0 to 100.0)
+    detected BOOLEAN NOT NULL DEFAULT false, -- True if Fire / Flame is detected
+    sensor_status TEXT NOT NULL,          -- "Fire Alert", "Safe", "Warning"
     created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 -- 2. Add documentation comments
-COMMENT ON TABLE public.detection_readings IS 'Stores ultrasonic sensor readings, proximity detection classification, and operational status from the ESP32-S3.';
-COMMENT ON COLUMN public.detection_readings.id IS 'Unique identifier auto-incremented for each sensor report.';
-COMMENT ON COLUMN public.detection_readings.distance_cm IS 'Measured distance in centimeters. Null or 0 indicates out-of-range / sensor error.';
-COMMENT ON COLUMN public.detection_readings.detected IS 'Classification flag: true if an object is within the detection threshold distance.';
-COMMENT ON COLUMN public.detection_readings.sensor_status IS 'State indicator: "Detected", "Clear", or "No Reading".';
-COMMENT ON COLUMN public.detection_readings.created_at IS 'UTC timestamp when the reading was inserted into the database.';
+COMMENT ON TABLE public.detection_readings IS 'Stores real-time flame sensor readings, fire detection classifications, and alert status from the ESP32-S3 node.';
+COMMENT ON COLUMN public.detection_readings.id IS 'Auto-incrementing primary key identifier.';
+COMMENT ON COLUMN public.detection_readings.distance_cm IS 'Flame intensity percentage (0.0% to 100.0%) measured by analog IR sensor.';
+COMMENT ON COLUMN public.detection_readings.detected IS 'Emergency flag: true if flame / fire detected, false if environment is safe.';
+COMMENT ON COLUMN public.detection_readings.sensor_status IS 'Operational status indicator ("Fire Alert", "Safe", "Warning").';
+COMMENT ON COLUMN public.detection_readings.created_at IS 'UTC timestamp when the reading was inserted.';
 
 -- 3. Create performance indexes
--- Speeds up queries retrieving the latest reading and paginated historical logs.
 CREATE INDEX IF NOT EXISTS idx_detection_readings_created_at 
 ON public.detection_readings (created_at DESC);
 
@@ -43,9 +41,8 @@ ON public.detection_readings
 FOR INSERT
 TO anon
 WITH CHECK (
-    -- Ensure required fields match expected ranges and values
-    sensor_status IN ('Detected', 'Clear', 'No Reading')
-    AND (distance_cm IS NULL OR (distance_cm >= 0 AND distance_cm <= 500))
+    -- Allow fire status values as well as legacy values for smooth migration
+    sensor_status IN ('Fire Alert', 'Safe', 'Warning', 'Detected', 'Clear', 'No Reading')
 );
 
 -- Policy 2: Allow anonymous clients (Frontend Dashboard) to SELECT historical readings
@@ -56,19 +53,5 @@ FOR SELECT
 TO anon
 USING (true);
 
--- (Notice: UPDATE and DELETE policies are intentionally omitted so that sensor readings
--- are immutable and tamper-resistant from the public anon role)
-
--- 6. Enable Realtime Publications
--- Enables Supabase WebSocket Realtime events for live dashboard updates
-DO $$
-BEGIN
-    IF NOT EXISTS (
-        SELECT 1 FROM pg_publication_tables 
-        WHERE pubname = 'supabase_realtime' 
-        AND schemaname = 'public' 
-        AND tablename = 'detection_readings'
-    ) THEN
-        ALTER PUBLICATION supabase_realtime ADD TABLE public.detection_readings;
-    END IF;
-END $$;
+-- 6. Enable Realtime Publications for live dashboard streaming
+ALTER PUBLICATION supabase_realtime ADD TABLE public.detection_readings;
