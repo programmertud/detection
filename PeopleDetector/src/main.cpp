@@ -8,9 +8,13 @@
  * 
  * Hardware Connections:
  *   HC-SR04 TRIG  --> ESP32-S3 GPIO 5
- *   HC-SR04 ECHO  --> Voltage Divider (1kΩ / 2kΩ) --> ESP32-S3 GPIO 6
+ *   HC-SR04 ECHO  --> 1kΩ resistor inline --> ESP32-S3 GPIO 4
  *   HC-SR04 VCC   --> 5V Power Rail (or ESP32 5V / VIN pin)
  *   HC-SR04 GND   --> Common Ground (GND)
+ *
+ * NOTE: ECHO moved to GPIO 4 (non-adjacent to TRIG GPIO 5) to prevent
+ *       electrical crosstalk. GPIO 5 and 6 share a physical column on the
+ *       DevKitC-1, causing capacitive coupling that produces false 1-4 µs pulses.
  * 
  * Cloud Backend:
  *   Supabase REST API (HTTPS POST /rest/v1/detection_readings)
@@ -34,7 +38,7 @@
 // HARDWARE PIN DEFINITIONS
 // ----------------------------------------------------------------------------
 constexpr uint8_t PIN_TRIG   = 5;  // Ultrasonic Trigger Pin
-constexpr uint8_t PIN_ECHO   = 6;  // Ultrasonic Echo Pin (Received via 3.3V divider)
+constexpr uint8_t PIN_ECHO   = 4;  // Ultrasonic Echo Pin — moved to GPIO 4 to avoid crosstalk with TRIG (GPIO 5 and 6 are physically adjacent on DevKitC-1)
 constexpr uint8_t PIN_BUZZER = 7;  // Audible Alert Buzzer Pin (Active or Passive)
 
 // ----------------------------------------------------------------------------
@@ -139,7 +143,7 @@ void loop() {
             Serial.printf("  Sensor Hardware   : OPERATIONAL [OK] (Echo: %lu us)\n", reading.rawEchoDurationUs);
         } else {
             Serial.println("  Sensor Hardware   : NOT RESPONDING / TIMEOUT (0 us)");
-            Serial.println("  Troubleshooting   : Check 5V power rail, TRIG (GPIO 5), or ECHO (GPIO 6)");
+            Serial.println("  Troubleshooting   : Check 5V power rail, TRIG (GPIO 5), or ECHO (GPIO 4)");
         }
 
         if (reading.isValid) {
@@ -235,11 +239,11 @@ void runUltrasonicSelfTest() {
         triggerBuzzerAlert(true);
     } else {
         Serial.println("  >>> RESULT: [WARNING] ULTRASONIC SENSOR IS NOT RESPONDING <<<");
-        Serial.println("      Zero echo pulses returned from ECHO (GPIO 6).");
+        Serial.println("      Zero echo pulses returned from ECHO (GPIO 4).");
         Serial.println("      Hardware Troubleshooting Checklist:");
         Serial.println("        1. Check VCC: Must be connected to 5V / VIN (not 3.3V).");
         Serial.println("        2. Check TRIG: Must connect to GPIO 5.");
-        Serial.println("        3. Check ECHO: Must connect to GPIO 6 (via 1k resistor).");
+        Serial.println("        3. Check ECHO: Must connect to GPIO 4 (via 1k resistor inline).");
         Serial.println("        4. Check GND: Must share common ground with ESP32.");
     }
     Serial.println("-------------------------------------------------------");

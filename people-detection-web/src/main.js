@@ -10,6 +10,7 @@
 
 import { createClient } from '@supabase/supabase-js';
 import { createIcons, icons } from 'lucide';
+import './style.css';
 
 // ----------------------------------------------------------------------------
 // APPLICATION CONFIGURATION & STATE
@@ -771,11 +772,15 @@ function setupConfigModal() {
       cfgUrl.value = localStorage.getItem('supabase_url') || import.meta.env.VITE_SUPABASE_URL || '';
       cfgKey.value = localStorage.getItem('supabase_key') || import.meta.env.VITE_SUPABASE_ANON_KEY || '';
       modal.classList.remove('hidden');
+      modal.classList.add('flex');
     });
   }
 
   if (closeBtn) {
-    closeBtn.addEventListener('click', () => modal.classList.add('hidden'));
+    closeBtn.addEventListener('click', () => {
+      modal.classList.add('hidden');
+      modal.classList.remove('flex');
+    });
   }
 
   if (form) {
