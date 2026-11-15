@@ -332,6 +332,14 @@ SensorReading sampleUltrasonicDistance() {
 
     // Step 3: Measure high pulse duration returned from HC-SR04 echo pin (35ms timeout)
     unsigned long echoDurationUs = pulseIn(PIN_ECHO, HIGH, 35000);
+
+    // Filter out breadboard electrical crosstalk:
+    // Any pulse under 60 microseconds is an electrical trigger spike (less than 1 cm),
+    // because acoustic sound takes at least 116 us to travel back and forth.
+    if (echoDurationUs > 0 && echoDurationUs < 60) {
+        // Discard the trigger spike and read the actual acoustic reflection
+        echoDurationUs = pulseIn(PIN_ECHO, HIGH, 35000);
+    }
     result.rawEchoDurationUs = echoDurationUs;
 
     // Step 4: Validate pulse duration and compute physical distance
