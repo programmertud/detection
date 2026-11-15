@@ -186,13 +186,14 @@ void loop() {
 // ----------------------------------------------------------------------------
 void setupHardware() {
     pinMode(PIN_TRIG, OUTPUT);
-    pinMode(PIN_ECHO, INPUT);
+    // Use internal pull-down on ECHO to prevent floating high states from blocking pulseIn
+    pinMode(PIN_ECHO, INPUT_PULLDOWN);
     pinMode(PIN_BUZZER, OUTPUT);
 
     // Ensure outputs start in low quiescent state
     digitalWrite(PIN_TRIG, LOW);
     digitalWrite(PIN_BUZZER, LOW);
-    delayMicroseconds(50);
+    delay(50);
     Serial.println("[HW] HC-SR04 & Buzzer GPIO pins configured successfully.");
 }
 
@@ -317,17 +318,20 @@ SensorReading sampleUltrasonicDistance() {
     result.statusText = "No Reading";
     result.diagnosticMessage = "Initializing";
 
-    // Step 1: Ensure clean low pulse for 4 microseconds
-    digitalWrite(PIN_TRIG, LOW);
-    delayMicroseconds(4);
+    // Check if ECHO pin is stuck HIGH before triggering (causes pulseIn to immediately fail)
+    bool echoInitiallyHigh = (digitalRead(PIN_ECHO) == HIGH);
 
-    // Step 2: Emit standard 10-microsecond ultrasonic burst trigger
-    digitalWrite(PIN_TRIG, HIGH);
+    // Step 1: Ensure clean low baseline for 10 microseconds
+    digitalWrite(PIN_TRIG, LOW);
     delayMicroseconds(10);
+
+    // Step 2: Emit standard 12-microsecond ultrasonic burst trigger pulse
+    digitalWrite(PIN_TRIG, HIGH);
+    delayMicroseconds(12);
     digitalWrite(PIN_TRIG, LOW);
 
-    // Step 3: Measure high pulse duration returned from HC-SR04 echo pin
-    unsigned long echoDurationUs = pulseIn(PIN_ECHO, HIGH, ECHO_TIMEOUT_US);
+    // Step 3: Measure high pulse duration returned from HC-SR04 echo pin (35ms timeout)
+    unsigned long echoDurationUs = pulseIn(PIN_ECHO, HIGH, 35000);
     result.rawEchoDurationUs = echoDurationUs;
 
     // Step 4: Validate pulse duration and compute physical distance
@@ -337,7 +341,11 @@ SensorReading sampleUltrasonicDistance() {
         result.isDetected = false;
         result.isHardwareResponding = false;
         result.statusText = "No Reading";
-        result.diagnosticMessage = "Sensor timeout: No echo received (Check VCC 5V or wiring)";
+        if (echoInitiallyHigh) {
+            result.diagnosticMessage = "ECHO pin is stuck HIGH! Check for 5V short or swap TRIG/ECHO.";
+        } else {
+            result.diagnosticMessage = "Sensor timeout: 0 us pulse (Check 5V/VIN power & wire contacts)";
+        }
         return result;
     }
 
