@@ -38,7 +38,7 @@
 // HARDWARE PIN DEFINITIONS
 // ----------------------------------------------------------------------------
 constexpr uint8_t PIN_TRIG   = 5;  // Ultrasonic Trigger Pin
-constexpr uint8_t PIN_ECHO   = 4;  // Ultrasonic Echo Pin — moved to GPIO 4 to avoid crosstalk with TRIG (GPIO 5 and 6 are physically adjacent on DevKitC-1)
+uint8_t pinEcho              = 4;  // Ultrasonic Echo Pin (Auto-detects GPIO 4 or GPIO 6)
 constexpr uint8_t PIN_BUZZER = 7;  // Audible Alert Buzzer Pin (Active or Passive)
 
 // ----------------------------------------------------------------------------
@@ -111,7 +111,7 @@ void setup() {
     Serial.println("  Academic Research & Laboratory Demonstration Node    ");
     Serial.println("=======================================================");
     Serial.printf("Configured Distance Threshold: %.1f cm\n", DETECTION_THRESHOLD_CM);
-    Serial.printf("Sensor Pins: TRIG=GPIO%d, ECHO=GPIO%d, BUZZER=GPIO%d\n", PIN_TRIG, PIN_ECHO, PIN_BUZZER);
+    Serial.printf("Sensor Pins: TRIG=GPIO%d, ECHO=GPIO%d (or GPIO 6), BUZZER=GPIO%d\n", PIN_TRIG, pinEcho, PIN_BUZZER);
     Serial.println("=======================================================");
 
     setupHardware();
@@ -191,7 +191,8 @@ void loop() {
 void setupHardware() {
     pinMode(PIN_TRIG, OUTPUT);
     // Use internal pull-down on ECHO to prevent floating high states from blocking pulseIn
-    pinMode(PIN_ECHO, INPUT_PULLDOWN);
+    pinMode(4, INPUT);
+    pinMode(6, INPUT);
     pinMode(PIN_BUZZER, OUTPUT);
 
     // Ensure outputs start in low quiescent state
@@ -220,10 +221,10 @@ void runUltrasonicSelfTest() {
         if (test.isHardwareResponding) {
             validEchoCount++;
             if (test.isValid) lastMeasuredDist = test.distanceCm;
-            Serial.printf("   Test Pulse #%d: ECHO RECEIVED (Duration: %lu us, Distance: %.1f cm)\n", 
-                          i, test.rawEchoDurationUs, test.distanceCm);
+            Serial.printf("   Test Pulse #%d: ECHO RECEIVED on GPIO %d (Duration: %lu us, Distance: %.1f cm)\n", 
+                          i, pinEcho, test.rawEchoDurationUs, test.distanceCm);
         } else {
-            Serial.printf("   Test Pulse #%d: TIMEOUT (0 us - No echo detected)\n", i);
+            Serial.printf("   Test Pulse #%d: TIMEOUT / NO PULSE (Duration: %lu us)\n", i, test.rawEchoDurationUs);
         }
     }
 
@@ -323,7 +324,7 @@ SensorReading sampleUltrasonicDistance() {
     result.diagnosticMessage = "Initializing";
 
     // Check if ECHO pin is stuck HIGH before triggering (causes pulseIn to immediately fail)
-    bool echoInitiallyHigh = (digitalRead(PIN_ECHO) == HIGH);
+    bool echoInitiallyHigh = (digitalRead(pinEcho) == HIGH);
 
     // Step 1: Ensure clean low baseline for 10 microseconds
     digitalWrite(PIN_TRIG, LOW);
@@ -335,28 +336,38 @@ SensorReading sampleUltrasonicDistance() {
     digitalWrite(PIN_TRIG, LOW);
 
     // Step 3: Measure high pulse duration returned from HC-SR04 echo pin (35ms timeout)
-    unsigned long echoDurationUs = pulseIn(PIN_ECHO, HIGH, 35000);
+    unsigned long echoDurationUs = pulseIn(pinEcho, HIGH, 30000);
 
     // Filter out breadboard electrical crosstalk:
     // Any pulse under 60 microseconds is an electrical trigger spike (less than 1 cm),
     // because acoustic sound takes at least 116 us to travel back and forth.
-    if (echoDurationUs > 0 && echoDurationUs < 60) {
+    if (echoDurationUs < 60) {
         // Discard the trigger spike and read the actual acoustic reflection
-        echoDurationUs = pulseIn(PIN_ECHO, HIGH, 35000);
+        uint8_t altPin = (pinEcho == 4) ? 6 : 4;
+        digitalWrite(PIN_TRIG, LOW);
+        delayMicroseconds(5);
+        digitalWrite(PIN_TRIG, HIGH);
+        delayMicroseconds(10);
+        digitalWrite(PIN_TRIG, LOW);
+        unsigned long altDuration = pulseIn(altPin, HIGH, 30000);
+        if (altDuration >= 60) {
+            pinEcho = altPin;
+            echoDurationUs = altDuration;
+        }
     }
     result.rawEchoDurationUs = echoDurationUs;
 
     // Step 4: Validate pulse duration and compute physical distance
-    if (echoDurationUs == 0) {
+    if (echoDurationUs < 60) {
         // Echo timed out: no acoustic reflection detected or sensor disconnected
         result.isValid = false;
         result.isDetected = false;
-        result.isHardwareResponding = false;
+        result.isHardwareResponding = (echoDurationUs > 0);
         result.statusText = "No Reading";
         if (echoInitiallyHigh) {
             result.diagnosticMessage = "ECHO pin is stuck HIGH! Check for 5V short or swap TRIG/ECHO.";
         } else {
-            result.diagnosticMessage = "Sensor timeout: 0 us pulse (Check 5V/VIN power & wire contacts)";
+            result.diagnosticMessage = "Sensor timeout (0 us): Check 5V power on header J3, or wire contacts";
         }
         return result;
     }
