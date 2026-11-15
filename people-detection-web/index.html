@@ -1,0 +1,774 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="IoT People Detection and Monitoring System utilizing ESP32-S3, HC-SR04 Ultrasonic Sensor, Supabase, and Vercel." />
+  <title>People Detection & Monitoring System | ESP32-S3 IoT Dashboard</title>
+  
+  <!-- Modern Inter Font -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  
+  <link rel="stylesheet" href="./src/style.css" />
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen antialiased flex flex-col md:flex-row">
+
+  <!-- Mobile Header -->
+  <header class="md:hidden flex items-center justify-between p-4 bg-slate-900 border-b border-slate-800 sticky top-0 z-50">
+    <div class="flex items-center gap-3">
+      <div class="w-9 h-9 rounded-xl bg-blue-600/20 border border-blue-500/30 flex items-center justify-center text-blue-400">
+        <i data-lucide="radio" class="w-5 h-5"></i>
+      </div>
+      <div>
+        <h1 class="font-bold text-sm tracking-tight text-white">PeopleSense IoT</h1>
+        <p class="text-xs text-slate-400">ESP32-S3 • HC-SR04</p>
+      </div>
+    </div>
+    <button id="mobile-menu-btn" class="p-2 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800" aria-label="Toggle Navigation">
+      <i data-lucide="menu" class="w-5 h-5"></i>
+    </button>
+  </header>
+
+  <!-- Navigation Sidebar -->
+  <aside id="sidebar" class="fixed inset-y-0 left-0 transform -translate-x-full md:translate-x-0 md:static z-40 w-72 bg-slate-900/95 backdrop-blur-xl border-r border-slate-800/80 p-5 flex flex-col justify-between transition-transform duration-300 ease-in-out">
+    <div>
+      <!-- Brand Logo & Platform Details -->
+      <div class="flex items-center gap-3 pb-6 border-b border-slate-800">
+        <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white shadow-lg shadow-blue-500/20">
+          <i data-lucide="radio" class="w-5 h-5"></i>
+        </div>
+        <div>
+          <h1 class="font-bold text-base tracking-tight text-white flex items-center gap-1.5">
+            PeopleSense <span class="text-xs px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-400 border border-blue-500/30 font-mono">IoT</span>
+          </h1>
+          <p class="text-xs text-slate-400">Distance-Based Monitor</p>
+        </div>
+      </div>
+
+      <!-- Navigation Links -->
+      <nav class="mt-6 space-y-1.5">
+        <button data-section="overview" class="nav-item active w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium transition-all">
+          <i data-lucide="layout-dashboard" class="w-4 h-4"></i>
+          <span>Overview</span>
+        </button>
+
+        <button data-section="monitor" class="nav-item w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium transition-all">
+          <i data-lucide="activity" class="w-4 h-4"></i>
+          <span>Detection Monitor</span>
+        </button>
+
+        <button data-section="history" class="nav-item w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium transition-all">
+          <i data-lucide="history" class="w-4 h-4"></i>
+          <span>Detection History</span>
+        </button>
+
+        <button data-section="system" class="nav-item w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium transition-all">
+          <i data-lucide="cpu" class="w-4 h-4"></i>
+          <span>System Information</span>
+        </button>
+      </nav>
+    </div>
+
+    <!-- Sidebar Footer / Hardware Status Badge -->
+    <div class="pt-6 border-t border-slate-800/80 space-y-3">
+      <div class="bg-slate-950/60 rounded-xl p-3 border border-slate-800">
+        <div class="flex items-center justify-between text-xs mb-1.5">
+          <span class="text-slate-400">ESP32 Hardware</span>
+          <span id="hardware-status-badge" class="flex items-center gap-1.5 text-slate-400 font-medium">
+            <span class="w-2 h-2 rounded-full bg-slate-500 animate-pulse"></span>
+            Connecting...
+          </span>
+        </div>
+        <div class="flex items-center justify-between text-xs">
+          <span class="text-slate-400">Database Sync</span>
+          <span id="db-status-badge" class="text-emerald-400 font-medium">Online (2s)</span>
+        </div>
+      </div>
+
+      <div class="flex items-center justify-between text-xs text-slate-500 px-1">
+        <span>Academic Demo v1.0</span>
+        <button id="open-config-btn" class="hover:text-slate-300 flex items-center gap-1">
+          <i data-lucide="settings" class="w-3.5 h-3.5"></i>
+          <span>API Config</span>
+        </button>
+      </div>
+    </div>
+  </aside>
+
+  <!-- Mobile Backdrop Overlay -->
+  <div id="backdrop" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-30 hidden md:hidden"></div>
+
+  <!-- Main Content Layout -->
+  <main class="flex-1 min-w-0 flex flex-col bg-slate-950">
+    
+    <!-- Top Action Bar -->
+    <div class="bg-slate-900/60 backdrop-blur-md border-b border-slate-800 px-6 py-4 flex flex-wrap items-center justify-between gap-4 sticky top-0 z-20">
+      <div>
+        <h2 id="current-section-title" class="text-lg font-bold text-white tracking-tight">System Overview</h2>
+        <p class="text-xs text-slate-400 flex items-center gap-2">
+          <span>Real-time Telemetry Feed</span>
+          <span class="text-slate-600">•</span>
+          <span id="last-sync-time" class="text-slate-400 font-mono">Syncing...</span>
+        </p>
+      </div>
+
+      <div class="flex items-center gap-2.5">
+        <!-- Audio alert toggle -->
+        <button id="audio-alert-btn" class="px-3 py-1.5 rounded-lg border border-slate-800 bg-slate-900 hover:bg-slate-800 text-slate-400 hover:text-white text-xs font-medium flex items-center gap-1.5 transition-colors" title="Toggle Audio Chime">
+          <i data-lucide="volume-2" class="w-3.5 h-3.5"></i>
+          <span id="audio-alert-text">Sound: OFF</span>
+        </button>
+
+        <!-- Refresh Button -->
+        <button id="manual-refresh-btn" class="px-3.5 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-medium flex items-center gap-1.5 shadow-sm transition-all shadow-blue-500/20 active:scale-95">
+          <i data-lucide="refresh-cw" class="w-3.5 h-3.5" id="refresh-icon"></i>
+          <span>Refresh Data</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Alert / System Banner -->
+    <div id="status-banner" class="hidden px-6 py-2.5 text-xs font-medium border-b flex items-center justify-between">
+      <div class="flex items-center gap-2" id="status-banner-content">
+        <!-- Dynamic message -->
+      </div>
+      <button id="close-banner-btn" class="text-slate-400 hover:text-white">
+        <i data-lucide="x" class="w-4 h-4"></i>
+      </button>
+    </div>
+
+    <!-- Dashboard Content Area -->
+    <div class="p-6 space-y-6 flex-1 overflow-y-auto">
+
+      <!-- =================================================================== -->
+      <!-- SECTION A: OVERVIEW                                                 -->
+      <!-- =================================================================== -->
+      <section id="section-overview" class="dashboard-section space-y-6">
+        
+        <!-- 4 Summary KPI Cards -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          
+          <!-- Card 1: Detection State -->
+          <div class="kpi-card relative overflow-hidden bg-slate-900/90 border border-slate-800 rounded-2xl p-5 shadow-sm">
+            <div class="flex items-center justify-between mb-3">
+              <span class="text-xs font-medium text-slate-400 uppercase tracking-wider">Detection Status</span>
+              <div id="kpi-status-icon-wrap" class="w-8 h-8 rounded-lg bg-slate-800 flex items-center justify-center text-slate-400">
+                <i data-lucide="user-check" class="w-4 h-4"></i>
+              </div>
+            </div>
+            <div id="kpi-status-value" class="text-2xl font-bold text-white tracking-tight flex items-center gap-2">
+              <span>Checking...</span>
+            </div>
+            <p id="kpi-status-sub" class="text-xs text-slate-400 mt-2 flex items-center gap-1.5">
+              <span>Awaiting telemetry</span>
+            </p>
+            <div id="kpi-status-accent" class="absolute bottom-0 left-0 right-0 h-1 bg-slate-800"></div>
+          </div>
+
+          <!-- Card 2: Current Distance -->
+          <div class="kpi-card bg-slate-900/90 border border-slate-800 rounded-2xl p-5 shadow-sm">
+            <div class="flex items-center justify-between mb-3">
+              <span class="text-xs font-medium text-slate-400 uppercase tracking-wider">Current Distance</span>
+              <div class="w-8 h-8 rounded-lg bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-400">
+                <i data-lucide="ruler" class="w-4 h-4"></i>
+              </div>
+            </div>
+            <div class="text-2xl font-bold text-white tracking-tight flex items-baseline gap-1.5">
+              <span id="kpi-distance-value" class="font-mono">--.-</span>
+              <span class="text-sm font-normal text-slate-400">cm</span>
+            </div>
+            <div class="mt-3">
+              <div class="flex justify-between text-xs text-slate-400 mb-1">
+                <span>Proximity Range</span>
+                <span id="kpi-distance-meter-label">0 - 400 cm</span>
+              </div>
+              <div class="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden">
+                <div id="kpi-distance-bar" class="bg-blue-500 h-full w-0 transition-all duration-300"></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Card 3: Hardware Connectivity -->
+          <div class="kpi-card bg-slate-900/90 border border-slate-800 rounded-2xl p-5 shadow-sm">
+            <div class="flex items-center justify-between mb-3">
+              <span class="text-xs font-medium text-slate-400 uppercase tracking-wider">Sensor Node</span>
+              <div id="kpi-conn-icon-wrap" class="w-8 h-8 rounded-lg bg-slate-800 flex items-center justify-center text-slate-400">
+                <i data-lucide="wifi" class="w-4 h-4"></i>
+              </div>
+            </div>
+            <div id="kpi-conn-value" class="text-2xl font-bold text-white tracking-tight flex items-center gap-2">
+              <span class="w-2.5 h-2.5 rounded-full bg-slate-500"></span>
+              <span>Standby</span>
+            </div>
+            <p id="kpi-conn-sub" class="text-xs text-slate-400 mt-2 font-mono">
+              Last packet: --
+            </p>
+          </div>
+
+          <!-- Card 4: Total Logged Readings -->
+          <div class="kpi-card bg-slate-900/90 border border-slate-800 rounded-2xl p-5 shadow-sm">
+            <div class="flex items-center justify-between mb-3">
+              <span class="text-xs font-medium text-slate-400 uppercase tracking-wider">Total Readings</span>
+              <div class="w-8 h-8 rounded-lg bg-purple-500/10 border border-purple-500/20 flex items-center justify-center text-purple-400">
+                <i data-lucide="database" class="w-4 h-4"></i>
+              </div>
+            </div>
+            <div id="kpi-readings-count" class="text-2xl font-bold text-white tracking-tight font-mono">
+              0
+            </div>
+            <p class="text-xs text-slate-400 mt-2 flex items-center gap-1.5">
+              <i data-lucide="clock" class="w-3.5 h-3.5 text-slate-500"></i>
+              <span>Poll cycle: 2000 ms</span>
+            </p>
+          </div>
+
+        </div>
+
+        <!-- Quick Summary & Quick Graph / Gauge Section -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <!-- Live Ultrasonic Radar Preview -->
+          <div class="lg:col-span-2 bg-slate-900/90 border border-slate-800 rounded-2xl p-6">
+            <div class="flex items-center justify-between mb-5">
+              <div>
+                <h3 class="font-bold text-white text-base">Ultrasonic Radar Telemetry</h3>
+                <p class="text-xs text-slate-400">Live spatial distance tracking from the HC-SR04 transducer</p>
+              </div>
+              <span id="radar-live-badge" class="px-2.5 py-1 rounded-full text-xs font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 flex items-center gap-1.5">
+                <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping"></span>
+                Live Stream
+              </span>
+            </div>
+
+            <!-- Interactive Radar Canvas Wrapper -->
+            <div class="relative w-full aspect-[16/9] max-h-80 bg-slate-950/80 rounded-xl border border-slate-800/80 flex items-center justify-center overflow-hidden">
+              <!-- Radial Grid Concentric Rings -->
+              <div class="absolute inset-0 flex items-center justify-center pointer-events-none">
+                <div class="w-72 h-72 rounded-full border border-slate-800/60"></div>
+                <div class="absolute w-56 h-56 rounded-full border border-slate-800/80"></div>
+                <div class="absolute w-40 h-40 rounded-full border border-slate-700/60"></div>
+                <div class="absolute w-24 h-24 rounded-full border border-slate-700/80"></div>
+                <!-- Crosshairs -->
+                <div class="absolute w-full h-[1px] bg-slate-800/40"></div>
+                <div class="absolute h-full w-[1px] bg-slate-800/40"></div>
+                <!-- Threshold Ring (Dynamic) -->
+                <div id="radar-threshold-ring" class="absolute w-36 h-36 rounded-full border-2 border-dashed border-amber-500/40 transition-all duration-300"></div>
+              </div>
+
+              <!-- Radar Beam Sweep Animation -->
+              <div class="radar-sweep-beam"></div>
+
+              <!-- Ultrasonic Emitter Center Marker -->
+              <div class="relative z-10 flex flex-col items-center">
+                <div class="w-7 h-7 rounded-full bg-blue-600 border-2 border-white flex items-center justify-center text-white shadow-lg shadow-blue-500/50">
+                  <i data-lucide="radio" class="w-3.5 h-3.5"></i>
+                </div>
+                <span class="text-[10px] font-mono text-slate-400 mt-1">ESP32-S3</span>
+              </div>
+
+              <!-- Detected Object Blip (Plotted dynamically) -->
+              <div id="radar-blip" class="absolute z-10 transform -translate-x-1/2 -translate-y-1/2 transition-all duration-500 opacity-0 pointer-events-none">
+                <div class="relative flex items-center justify-center">
+                  <span id="radar-blip-ping" class="absolute w-6 h-6 rounded-full bg-emerald-500/40 animate-ping"></span>
+                  <span id="radar-blip-dot" class="w-3.5 h-3.5 rounded-full bg-emerald-500 border border-white shadow-lg"></span>
+                </div>
+                <span id="radar-blip-tag" class="absolute top-4 left-1/2 -translate-x-1/2 whitespace-nowrap px-1.5 py-0.5 rounded bg-slate-900/90 border border-slate-700 text-[10px] font-mono text-white">
+                  0.0 cm
+                </span>
+              </div>
+
+              <!-- Bottom Overlay Stats -->
+              <div class="absolute bottom-3 left-4 right-4 flex items-center justify-between text-xs text-slate-400 bg-slate-900/80 px-3 py-1.5 rounded-lg border border-slate-800/60 backdrop-blur-sm">
+                <div>Threshold: <span id="radar-threshold-label" class="text-amber-400 font-mono">50.0 cm</span></div>
+                <div>Sensor Status: <span id="radar-status-label" class="text-white font-medium">Checking</span></div>
+                <div>Distance: <span id="radar-distance-label" class="text-blue-400 font-mono">-- cm</span></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Academic Lab Notes & Detection Rules -->
+          <div class="bg-slate-900/90 border border-slate-800 rounded-2xl p-6 flex flex-col justify-between">
+            <div>
+              <div class="flex items-center gap-2 mb-3 text-blue-400">
+                <i data-lucide="info" class="w-4 h-4"></i>
+                <h4 class="font-bold text-sm text-white uppercase tracking-wider">Classification Logic</h4>
+              </div>
+              <p class="text-xs text-slate-400 leading-relaxed mb-4">
+                The ultrasonic sensor emits high-frequency sound waves (40&nbsp;kHz) and measures the round-trip echo reflection time.
+              </p>
+
+              <div class="space-y-3">
+                <div class="p-3 rounded-xl bg-slate-950/60 border border-slate-800 flex items-start gap-3">
+                  <div class="w-2.5 h-2.5 rounded-full bg-emerald-500 mt-1 flex-shrink-0"></div>
+                  <div>
+                    <div class="text-xs font-semibold text-white">Detected (≤ Threshold)</div>
+                    <div class="text-[11px] text-slate-400">Object surface reflected within the configured proximity boundary.</div>
+                  </div>
+                </div>
+
+                <div class="p-3 rounded-xl bg-slate-950/60 border border-slate-800 flex items-start gap-3">
+                  <div class="w-2.5 h-2.5 rounded-full bg-blue-500 mt-1 flex-shrink-0"></div>
+                  <div>
+                    <div class="text-xs font-semibold text-white">Clear (&gt; Threshold)</div>
+                    <div class="text-[11px] text-slate-400">Path unobstructed within threshold distance (up to 400 cm).</div>
+                  </div>
+                </div>
+
+                <div class="p-3 rounded-xl bg-slate-950/60 border border-slate-800 flex items-start gap-3">
+                  <div class="w-2.5 h-2.5 rounded-full bg-amber-500 mt-1 flex-shrink-0"></div>
+                  <div>
+                    <div class="text-xs font-semibold text-white">No Reading</div>
+                    <div class="text-[11px] text-slate-400">Sensor timed out, disconnected, or physical obstacle out of bounds (&lt;2cm or &gt;400cm).</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="mt-4 pt-4 border-t border-slate-800/80">
+              <p class="text-[11px] text-slate-500 italic">
+                * Note: Acoustic distance monitoring detects reflective surfaces and does not claim biological person classification.
+              </p>
+            </div>
+          </div>
+        </div>
+
+      </section>
+
+      <!-- =================================================================== -->
+      <!-- SECTION B: DETECTION MONITOR                                        -->
+      <!-- =================================================================== -->
+      <section id="section-monitor" class="dashboard-section hidden space-y-6">
+        
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+          
+          <!-- Primary Large Visual Indicator Column -->
+          <div class="lg:col-span-7 bg-slate-900/90 border border-slate-800 rounded-2xl p-6 flex flex-col justify-between">
+            <div class="flex items-center justify-between mb-4">
+              <div>
+                <h3 class="font-bold text-white text-base">Real-time Detection Monitor</h3>
+                <p class="text-xs text-slate-400">High-visibility laboratory state display</p>
+              </div>
+              <span id="monitor-sync-badge" class="text-xs font-mono text-slate-400 flex items-center gap-1.5">
+                <span class="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></span>
+                2000 ms Poll
+              </span>
+            </div>
+
+            <!-- Massive State Visual Indicator -->
+            <div class="py-8 flex flex-col items-center justify-center">
+              
+              <!-- Giant Glowing Radial State Ring -->
+              <div id="monitor-hero-ring" class="relative w-52 h-52 sm:w-64 sm:h-64 rounded-full border-4 border-slate-800 flex flex-col items-center justify-center text-center transition-all duration-500 shadow-2xl">
+                <!-- Background Pulse Effect -->
+                <div id="monitor-pulse-halo" class="absolute inset-0 rounded-full bg-slate-800/20 animate-ping pointer-events-none"></div>
+
+                <!-- State Icon -->
+                <div id="monitor-state-icon" class="text-slate-400 mb-2 transition-transform duration-300">
+                  <i data-lucide="help-circle" class="w-12 h-12"></i>
+                </div>
+
+                <!-- Status Label -->
+                <div id="monitor-hero-status" class="text-xl sm:text-2xl font-extrabold tracking-tight text-white uppercase px-4">
+                  Standby
+                </div>
+
+                <!-- Distance Large Text -->
+                <div class="mt-2 text-slate-400 font-mono text-sm flex items-baseline gap-1">
+                  <span id="monitor-hero-distance" class="text-2xl sm:text-3xl font-bold text-white">--.-</span>
+                  <span>cm</span>
+                </div>
+              </div>
+
+              <!-- Status Tag Strip -->
+              <div class="flex flex-wrap items-center justify-center gap-2 mt-8">
+                <div id="badge-detected" class="px-3 py-1 rounded-full text-xs font-medium bg-slate-800/60 text-slate-500 border border-slate-700/50 flex items-center gap-1.5 transition-all">
+                  <span class="w-1.5 h-1.5 rounded-full bg-slate-600"></span>
+                  Person Detected
+                </div>
+                <div id="badge-clear" class="px-3 py-1 rounded-full text-xs font-medium bg-slate-800/60 text-slate-500 border border-slate-700/50 flex items-center gap-1.5 transition-all">
+                  <span class="w-1.5 h-1.5 rounded-full bg-slate-600"></span>
+                  Area Clear
+                </div>
+                <div id="badge-noreading" class="px-3 py-1 rounded-full text-xs font-medium bg-slate-800/60 text-slate-500 border border-slate-700/50 flex items-center gap-1.5 transition-all">
+                  <span class="w-1.5 h-1.5 rounded-full bg-slate-600"></span>
+                  No Reading
+                </div>
+              </div>
+
+            </div>
+
+            <!-- Distance vs Threshold Comparison Bar -->
+            <div class="bg-slate-950/60 rounded-xl p-4 border border-slate-800">
+              <div class="flex items-center justify-between text-xs mb-2">
+                <span class="text-slate-400">Distance vs Detection Limit</span>
+                <span class="text-slate-300 font-mono">
+                  <span id="bar-dist-val" class="font-bold text-white">--</span> / 
+                  <span id="bar-thresh-val" class="text-amber-400 font-semibold">50.0</span> cm
+                </span>
+              </div>
+              <div class="relative w-full h-3 bg-slate-800 rounded-full overflow-hidden">
+                <!-- Current distance fill -->
+                <div id="distance-progress-fill" class="h-full bg-blue-500 transition-all duration-300 w-0"></div>
+                <!-- Threshold target line marker -->
+                <div id="distance-threshold-marker" class="absolute top-0 bottom-0 w-1 bg-amber-400 shadow-md transition-all duration-200" style="left: 12.5%;"></div>
+              </div>
+              <div class="flex justify-between text-[10px] text-slate-500 mt-1 font-mono">
+                <span>0 cm</span>
+                <span id="thresh-pos-label" class="text-amber-400">Threshold (50 cm)</span>
+                <span>400 cm</span>
+              </div>
+            </div>
+
+          </div>
+
+          <!-- Configuration & Laboratory Controls Column -->
+          <div class="lg:col-span-5 space-y-6">
+            
+            <!-- Configurable Detection Threshold Card -->
+            <div class="bg-slate-900/90 border border-slate-800 rounded-2xl p-6">
+              <div class="flex items-center gap-2 mb-2 text-amber-400">
+                <i data-lucide="sliders" class="w-4 h-4"></i>
+                <h4 class="font-bold text-base text-white">Detection Threshold</h4>
+              </div>
+              <p class="text-xs text-slate-400 mb-5 leading-relaxed">
+                Adjust the distance boundary below which an object is flagged as a detected presence.
+              </p>
+
+              <!-- Threshold Slider -->
+              <div class="space-y-4">
+                <div class="flex items-center justify-between">
+                  <label for="threshold-slider" class="text-xs text-slate-300 font-medium">Trigger Distance</label>
+                  <div class="flex items-center gap-1 bg-slate-950 px-2.5 py-1 rounded-lg border border-slate-800">
+                    <input type="number" id="threshold-input" min="5" max="350" step="1" value="50" class="w-16 bg-transparent text-right font-mono text-sm text-white font-semibold focus:outline-none" />
+                    <span class="text-xs text-slate-400 font-mono">cm</span>
+                  </div>
+                </div>
+
+                <input type="range" id="threshold-slider" min="5" max="300" step="5" value="50" class="w-full h-2 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-blue-500" />
+
+                <div class="flex justify-between text-[11px] text-slate-500 font-mono">
+                  <span>5 cm (Close)</span>
+                  <span>150 cm</span>
+                  <span>300 cm (Long range)</span>
+                </div>
+
+                <div class="p-3 rounded-xl bg-slate-950/80 border border-slate-800/80 text-xs text-slate-400">
+                  <div class="font-medium text-slate-300 mb-1">Preset Configurations:</div>
+                  <div class="flex flex-wrap gap-2 pt-1">
+                    <button class="preset-btn px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-[11px] text-white" data-val="30">Desk (30 cm)</button>
+                    <button class="preset-btn px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-[11px] text-white" data-val="50">Lab Bench (50 cm)</button>
+                    <button class="preset-btn px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-[11px] text-white" data-val="100">Doorway (100 cm)</button>
+                    <button class="preset-btn px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-[11px] text-white" data-val="200">Hallway (200 cm)</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Alarm & Audio Alert Setting Card -->
+            <div class="bg-slate-900/90 border border-slate-800 rounded-2xl p-6">
+              <div class="flex items-center justify-between mb-4">
+                <div class="flex items-center gap-2 text-blue-400">
+                  <i data-lucide="bell" class="w-4 h-4"></i>
+                  <h4 class="font-bold text-base text-white">Audio & Alert Feedback</h4>
+                </div>
+                <label class="relative inline-flex items-center cursor-pointer">
+                  <input type="checkbox" id="audio-toggle-switch" class="sr-only peer">
+                  <div class="w-11 h-6 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                </label>
+              </div>
+              <p class="text-xs text-slate-400 leading-relaxed mb-3">
+                Plays a gentle laboratory notification chime whenever the sensor transitions from <em>Clear</em> to <em>Person Detected</em>.
+              </p>
+              <button id="test-audio-btn" class="w-full py-2 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-medium text-slate-300 flex items-center justify-center gap-2 transition-colors">
+                <i data-lucide="play" class="w-3.5 h-3.5"></i>
+                <span>Test Audio Chime</span>
+              </button>
+            </div>
+
+          </div>
+
+        </div>
+
+      </section>
+
+      <!-- =================================================================== -->
+      <!-- SECTION C: DETECTION HISTORY                                        -->
+      <!-- =================================================================== -->
+      <section id="section-history" class="dashboard-section hidden space-y-6">
+        
+        <div class="bg-slate-900/90 border border-slate-800 rounded-2xl p-6">
+          <!-- History Header & Controls -->
+          <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-6 border-b border-slate-800">
+            <div>
+              <h3 class="font-bold text-white text-base">Historical Detection Log</h3>
+              <p class="text-xs text-slate-400">Timestamped sensor transmissions retrieved from Supabase PostgreSQL</p>
+            </div>
+
+            <div class="flex flex-wrap items-center gap-3">
+              <!-- Limit Selector -->
+              <div class="flex items-center gap-2 text-xs text-slate-400">
+                <span>Display:</span>
+                <select id="history-limit-select" class="bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-blue-500">
+                  <option value="15">15 records</option>
+                  <option value="30" selected>30 records</option>
+                  <option value="50">50 records</option>
+                  <option value="100">100 records</option>
+                </select>
+              </div>
+
+              <!-- Filter Selector -->
+              <select id="history-filter-select" class="bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-blue-500">
+                <option value="ALL">All States</option>
+                <option value="DETECTED">Detected Only</option>
+                <option value="CLEAR">Clear Only</option>
+                <option value="NO_READING">No Reading Only</option>
+              </select>
+
+              <!-- Export CSV Button -->
+              <button id="export-csv-btn" class="px-3 py-1.5 rounded-lg border border-slate-800 bg-slate-950 hover:bg-slate-800 text-slate-300 hover:text-white text-xs font-medium flex items-center gap-1.5 transition-colors">
+                <i data-lucide="download" class="w-3.5 h-3.5"></i>
+                <span>Export CSV</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- History Table Container -->
+          <div class="mt-4 overflow-x-auto">
+            <table class="w-full text-left border-collapse text-xs">
+              <thead>
+                <tr class="border-b border-slate-800 text-slate-400 uppercase tracking-wider font-semibold">
+                  <th class="py-3 px-4"># ID</th>
+                  <th class="py-3 px-4">Timestamp (Local)</th>
+                  <th class="py-3 px-4">Distance (cm)</th>
+                  <th class="py-3 px-4">Detection Result</th>
+                  <th class="py-3 px-4">Sensor Status</th>
+                  <th class="py-3 px-4 text-right">Age</th>
+                </tr>
+              </thead>
+              <tbody id="history-table-body" class="divide-y divide-slate-800/60 font-mono">
+                <!-- Dynamically generated rows -->
+                <tr>
+                  <td colspan="6" class="py-8 text-center text-slate-500 font-sans">
+                    <div class="flex flex-col items-center justify-center gap-2">
+                      <div class="w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+                      <span>Connecting to Supabase database...</span>
+                    </div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <!-- History Table Pagination & Info -->
+          <div class="flex flex-col sm:flex-row items-center justify-between gap-4 mt-6 pt-4 border-t border-slate-800/80 text-xs text-slate-400">
+            <div id="history-pagination-info">
+              Showing 0 historical records
+            </div>
+            <div class="flex items-center gap-2">
+              <button id="history-prev-page" class="px-3 py-1 rounded bg-slate-950 border border-slate-800 text-slate-400 hover:text-white disabled:opacity-40" disabled>
+                Previous
+              </button>
+              <span id="history-page-number" class="font-mono text-slate-300 px-2">Page 1</span>
+              <button id="history-next-page" class="px-3 py-1 rounded bg-slate-950 border border-slate-800 text-slate-400 hover:text-white disabled:opacity-40" disabled>
+                Next
+              </button>
+            </div>
+          </div>
+
+        </div>
+
+      </section>
+
+      <!-- =================================================================== -->
+      <!-- SECTION D: SYSTEM INFORMATION                                       -->
+      <!-- =================================================================== -->
+      <section id="section-system" class="dashboard-section hidden space-y-6">
+        
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+          
+          <!-- Hardware Specifications -->
+          <div class="bg-slate-900/90 border border-slate-800 rounded-2xl p-6">
+            <div class="flex items-center gap-2.5 mb-4 text-blue-400">
+              <i data-lucide="cpu" class="w-5 h-5"></i>
+              <h3 class="font-bold text-white text-base">Hardware Architecture</h3>
+            </div>
+            <p class="text-xs text-slate-400 mb-4">
+              Physical node hardware configuration for laboratory sensor deployment.
+            </p>
+
+            <dl class="space-y-3 text-xs">
+              <div class="flex justify-between py-2 border-b border-slate-800/80">
+                <dt class="text-slate-400">Microcontroller</dt>
+                <dd class="text-white font-medium">ESP32-S3 (Dual Xtensa LX7 @ 240MHz)</dd>
+              </div>
+              <div class="flex justify-between py-2 border-b border-slate-800/80">
+                <dt class="text-slate-400">Ultrasonic Sensor</dt>
+                <dd class="text-white font-medium">HC-SR04 (40 kHz Acoustic Transducer)</dd>
+              </div>
+              <div class="flex justify-between py-2 border-b border-slate-800/80">
+                <dt class="text-slate-400">Operating Voltage</dt>
+                <dd class="text-white font-medium">ESP32-S3: 3.3V / HC-SR04: 5.0V</dd>
+              </div>
+              <div class="flex justify-between py-2 border-b border-slate-800/80">
+                <dt class="text-slate-400">Echo Voltage Divider</dt>
+                <dd class="text-emerald-400 font-mono">1kΩ & 2kΩ (5V → 3.3V Step-down)</dd>
+              </div>
+              <div class="flex justify-between py-2 border-b border-slate-800/80">
+                <dt class="text-slate-400">Effective Range</dt>
+                <dd class="text-white font-medium">2.0 cm to 400.0 cm (±3mm accuracy)</dd>
+              </div>
+              <div class="flex justify-between py-2">
+                <dt class="text-slate-400">Acoustic Speed Basis</dt>
+                <dd class="text-white font-medium">343 m/s (0.0343 cm/µs in ambient air)</dd>
+              </div>
+            </dl>
+          </div>
+
+          <!-- Software & Cloud Specifications -->
+          <div class="bg-slate-900/90 border border-slate-800 rounded-2xl p-6">
+            <div class="flex items-center gap-2.5 mb-4 text-indigo-400">
+              <i data-lucide="cloud" class="w-5 h-5"></i>
+              <h3 class="font-bold text-white text-base">Cloud & Software Stack</h3>
+            </div>
+            <p class="text-xs text-slate-400 mb-4">
+              Integrated software ecosystem for embedded telemetry and monitoring.
+            </p>
+
+            <dl class="space-y-3 text-xs">
+              <div class="flex justify-between py-2 border-b border-slate-800/80">
+                <dt class="text-slate-400">Embedded Framework</dt>
+                <dd class="text-white font-medium">PlatformIO / Arduino C++</dd>
+              </div>
+              <div class="flex justify-between py-2 border-b border-slate-800/80">
+                <dt class="text-slate-400">Cloud Database</dt>
+                <dd class="text-white font-medium">Supabase (PostgreSQL 15+)</dd>
+              </div>
+              <div class="flex justify-between py-2 border-b border-slate-800/80">
+                <dt class="text-slate-400">API Protocol</dt>
+                <dd class="text-white font-medium">HTTPS REST (PostgREST) + WSS Realtime</dd>
+              </div>
+              <div class="flex justify-between py-2 border-b border-slate-800/80">
+                <dt class="text-slate-400">Telemetry Sample Rate</dt>
+                <dd class="text-blue-400 font-mono">2000 ms (Every 2 seconds)</dd>
+              </div>
+              <div class="flex justify-between py-2 border-b border-slate-800/80">
+                <dt class="text-slate-400">Frontend Engine</dt>
+                <dd class="text-white font-medium">HTML5, CSS3, Vanilla JS, Vite</dd>
+              </div>
+              <div class="flex justify-between py-2">
+                <dt class="text-slate-400">Hosting Provider</dt>
+                <dd class="text-white font-medium">Vercel Edge Network</dd>
+              </div>
+            </dl>
+          </div>
+
+        </div>
+
+        <!-- Pinout & Wiring Quick Reference Card -->
+        <div class="bg-slate-900/90 border border-slate-800 rounded-2xl p-6">
+          <div class="flex items-center gap-2.5 mb-4 text-emerald-400">
+            <i data-lucide="git-commit" class="w-5 h-5"></i>
+            <h3 class="font-bold text-white text-base">Hardware Pinout & Circuit Schematic</h3>
+          </div>
+          
+          <div class="overflow-x-auto">
+            <table class="w-full text-left border-collapse text-xs">
+              <thead>
+                <tr class="border-b border-slate-800 text-slate-400 uppercase tracking-wider font-semibold">
+                  <th class="py-2.5 px-3">HC-SR04 Pin</th>
+                  <th class="py-2.5 px-3">ESP32-S3 Connection</th>
+                  <th class="py-2.5 px-3">Circuit Intermediary</th>
+                  <th class="py-2.5 px-3">Signal Level</th>
+                  <th class="py-2.5 px-3">Function Description</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-slate-800/60 font-mono">
+                <tr>
+                  <td class="py-2.5 px-3 font-bold text-white">VCC</td>
+                  <td class="py-2.5 px-3 text-amber-400">5V / VIN</td>
+                  <td class="py-2.5 px-3 text-slate-400">Direct wire</td>
+                  <td class="py-2.5 px-3 text-amber-400">5.0V DC</td>
+                  <td class="py-2.5 px-3 font-sans text-slate-300">Sensor power supply rail</td>
+                </tr>
+                <tr>
+                  <td class="py-2.5 px-3 font-bold text-white">TRIG</td>
+                  <td class="py-2.5 px-3 text-blue-400">GPIO 5</td>
+                  <td class="py-2.5 px-3 text-slate-400">Direct wire</td>
+                  <td class="py-2.5 px-3 text-blue-400">3.3V Logic</td>
+                  <td class="py-2.5 px-3 font-sans text-slate-300">10µs ultrasonic burst trigger output</td>
+                </tr>
+                <tr>
+                  <td class="py-2.5 px-3 font-bold text-white">ECHO</td>
+                  <td class="py-2.5 px-3 text-blue-400">GPIO 6</td>
+                  <td class="py-2.5 px-3 text-emerald-400">Voltage Divider (R1=1kΩ, R2=2kΩ)</td>
+                  <td class="py-2.5 px-3 text-emerald-400">5V → 3.3V</td>
+                  <td class="py-2.5 px-3 font-sans text-slate-300">Stepped-down echo pulse duration input</td>
+                </tr>
+                <tr>
+                  <td class="py-2.5 px-3 font-bold text-white">GND</td>
+                  <td class="py-2.5 px-3 text-slate-300">GND</td>
+                  <td class="py-2.5 px-3 text-slate-400">Common ground tie</td>
+                  <td class="py-2.5 px-3 text-slate-400">0V Reference</td>
+                  <td class="py-2.5 px-3 font-sans text-slate-300">System ground reference</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+      </section>
+
+    </div>
+  </main>
+
+  <!-- ===================================================================== -->
+  <!-- MODAL: SUPABASE API CONFIGURATION                                     -->
+  <!-- ===================================================================== -->
+  <div id="config-modal" class="fixed inset-0 bg-black/70 backdrop-blur-md z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-md p-6 shadow-2xl relative">
+      <button id="close-config-btn" class="absolute top-4 right-4 text-slate-400 hover:text-white">
+        <i data-lucide="x" class="w-5 h-5"></i>
+      </button>
+
+      <div class="flex items-center gap-3 mb-4">
+        <div class="w-10 h-10 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-400">
+          <i data-lucide="key" class="w-5 h-5"></i>
+        </div>
+        <div>
+          <h3 class="font-bold text-white text-base">Supabase Connection</h3>
+          <p class="text-xs text-slate-400">Live Client Credentials</p>
+        </div>
+      </div>
+
+      <p class="text-xs text-slate-400 mb-4 leading-relaxed">
+        Credentials are primarily loaded from build environment variables (<code class="text-blue-400">VITE_SUPABASE_URL</code>). You may also supply or override them directly in your local browser session below:
+      </p>
+
+      <form id="config-form" class="space-y-4">
+        <div>
+          <label class="block text-xs font-medium text-slate-300 mb-1">Supabase Project URL</label>
+          <input type="url" id="cfg-url" placeholder="https://xyzproject.supabase.co" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-blue-500 font-mono" required />
+        </div>
+
+        <div>
+          <label class="block text-xs font-medium text-slate-300 mb-1">Supabase Anon Public Key</label>
+          <input type="text" id="cfg-key" placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI..." class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-blue-500 font-mono" required />
+        </div>
+
+        <div class="p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-[11px] text-amber-300 flex items-start gap-2">
+          <i data-lucide="shield-alert" class="w-4 h-4 mt-0.5 flex-shrink-0"></i>
+          <span>Only use the public <strong>anon</strong> key. Never input your confidential service_role secret.</span>
+        </div>
+
+        <div class="flex items-center justify-end gap-2 pt-2">
+          <button type="button" id="reset-config-btn" class="px-4 py-2 rounded-xl text-xs text-slate-400 hover:text-white">Reset Default</button>
+          <button type="submit" class="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-xs font-semibold text-white transition-colors shadow-lg shadow-blue-500/20">Save & Connect</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script type="module" src="./src/main.js"></script>
+</body>
+</html>

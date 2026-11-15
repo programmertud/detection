@@ -1,0 +1,273 @@
+/* ==========================================================================
+   PEOPLE DETECTION & MONITORING SYSTEM - MODERN DASHBOARD STYLES
+   ========================================================================== */
+
+:root {
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+
+  /* Color Palette */
+  --bg-main: #020617;        /* slate-950 */
+  --bg-sidebar: #0b1329;     /* slate-900 / navy */
+  --bg-card: #0f172a;        /* slate-900 */
+  --bg-subtle: #1e293b;      /* slate-800 */
+  --border-color: #1e293b;   /* slate-800 */
+  --border-focus: #3b82f6;   /* blue-500 */
+  
+  --text-main: #f8fafc;      /* slate-50 */
+  --text-muted: #94a3b8;     /* slate-400 */
+  --text-dim: #64748b;       /* slate-500 */
+
+  /* Status Accents */
+  --status-detected: #10b981;  /* emerald-500 */
+  --status-clear: #3b82f6;     /* blue-500 */
+  --status-noreading: #f59e0b; /* amber-500 */
+  --status-offline: #ef4444;   /* red-500 */
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: var(--font-sans);
+  background-color: var(--bg-main);
+  color: var(--text-main);
+  min-height: 100vh;
+  display: flex;
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ==========================================================================
+   SIDEBAR & NAVIGATION
+   ========================================================================== */
+.nav-item {
+  color: var(--text-muted);
+  cursor: pointer;
+  background: transparent;
+  border: none;
+  font-family: inherit;
+  transition: all 0.2s ease;
+}
+
+.nav-item:hover {
+  color: var(--text-main);
+  background-color: rgba(30, 41, 59, 0.7);
+}
+
+.nav-item.active {
+  color: #60a5fa;
+  background-color: rgba(37, 99, 235, 0.15);
+  border: 1px solid rgba(59, 130, 246, 0.25);
+  font-weight: 600;
+}
+
+/* ==========================================================================
+   CARDS & CONTAINERS
+   ========================================================================== */
+.kpi-card {
+  transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.kpi-card:hover {
+  transform: translateY(-2px);
+  border-color: #334155;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3), 0 8px 10px -6px rgba(0, 0, 0, 0.3);
+}
+
+/* ==========================================================================
+   RADAR SCREEN & ANIMATIONS
+   ========================================================================== */
+.radar-sweep-beam {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 140px;
+  height: 140px;
+  transform-origin: 0 0;
+  border-radius: 100% 0 0 0;
+  background: conic-gradient(from 0deg, rgba(59, 130, 246, 0.35) 0deg, transparent 60deg);
+  animation: radar-sweep 4s linear infinite;
+  pointer-events: none;
+}
+
+@keyframes radar-sweep {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+/* Pulsing radar blip */
+#radar-blip-dot {
+  box-shadow: 0 0 12px currentColor;
+}
+
+/* ==========================================================================
+   DETECTION MONITOR HERO RING
+   ========================================================================== */
+#monitor-hero-ring {
+  background: radial-gradient(circle, rgba(15, 23, 42, 0.9) 0%, rgba(2, 6, 23, 0.95) 100%);
+  transition: border-color 0.4s ease, box-shadow 0.4s ease;
+}
+
+#monitor-hero-ring.state-detected {
+  border-color: #10b981;
+  box-shadow: 0 0 40px -5px rgba(16, 185, 129, 0.4), inset 0 0 20px rgba(16, 185, 129, 0.15);
+}
+
+#monitor-hero-ring.state-clear {
+  border-color: #3b82f6;
+  box-shadow: 0 0 35px -5px rgba(59, 130, 246, 0.3), inset 0 0 15px rgba(59, 130, 246, 0.1);
+}
+
+#monitor-hero-ring.state-noreading {
+  border-color: #f59e0b;
+  box-shadow: 0 0 30px -5px rgba(245, 158, 11, 0.25), inset 0 0 15px rgba(245, 158, 11, 0.1);
+}
+
+#monitor-hero-ring.state-offline {
+  border-color: #ef4444;
+  box-shadow: 0 0 30px -5px rgba(239, 68, 68, 0.25), inset 0 0 15px rgba(239, 68, 68, 0.1);
+}
+
+/* ==========================================================================
+   STATUS BADGES & CHIPS
+   ========================================================================== */
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.25rem 0.625rem;
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  line-height: 1;
+}
+
+.status-pill-detected {
+  background-color: rgba(16, 185, 129, 0.12);
+  color: #34d399;
+  border: 1px solid rgba(16, 185, 129, 0.3);
+}
+
+.status-pill-clear {
+  background-color: rgba(59, 130, 246, 0.12);
+  color: #60a5fa;
+  border: 1px solid rgba(59, 130, 246, 0.3);
+}
+
+.status-pill-noreading {
+  background-color: rgba(245, 158, 11, 0.12);
+  color: #fbbf24;
+  border: 1px solid rgba(245, 158, 11, 0.3);
+}
+
+.status-pill-offline {
+  background-color: rgba(239, 68, 68, 0.12);
+  color: #f87171;
+  border: 1px solid rgba(239, 68, 68, 0.3);
+}
+
+/* Active Badge Highlight in Monitor Section */
+.badge-active-detected {
+  background-color: rgba(16, 185, 129, 0.2) !important;
+  color: #34d399 !important;
+  border-color: rgba(16, 185, 129, 0.5) !important;
+}
+
+.badge-active-detected span {
+  background-color: #10b981 !important;
+  box-shadow: 0 0 8px #10b981;
+}
+
+.badge-active-clear {
+  background-color: rgba(59, 130, 246, 0.2) !important;
+  color: #60a5fa !important;
+  border-color: rgba(59, 130, 246, 0.5) !important;
+}
+
+.badge-active-clear span {
+  background-color: #3b82f6 !important;
+  box-shadow: 0 0 8px #3b82f6;
+}
+
+.badge-active-noreading {
+  background-color: rgba(245, 158, 11, 0.2) !important;
+  color: #fbbf24 !important;
+  border-color: rgba(245, 158, 11, 0.5) !important;
+}
+
+.badge-active-noreading span {
+  background-color: #f59e0b !important;
+  box-shadow: 0 0 8px #f59e0b;
+}
+
+/* ==========================================================================
+   INPUTS, SLIDERS & RANGE CONTROLS
+   ========================================================================== */
+input[type="range"] {
+  -webkit-appearance: none;
+  background: #1e293b;
+  border-radius: 9999px;
+  height: 6px;
+  outline: none;
+}
+
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #3b82f6;
+  border: 2px solid #ffffff;
+  cursor: pointer;
+  box-shadow: 0 0 8px rgba(59, 130, 246, 0.6);
+  transition: transform 0.1s ease, background-color 0.2s ease;
+}
+
+input[type="range"]::-webkit-slider-thumb:hover {
+  transform: scale(1.15);
+  background: #60a5fa;
+}
+
+/* ==========================================================================
+   CUSTOM SCROLLBAR
+   ========================================================================== */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #020617;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #1e293b;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #334155;
+}
+
+/* ==========================================================================
+   TAILWIND UTILITY EXTENSIONS (STANDALONE FALLBACKS)
+   ========================================================================== */
+.bg-slate-950 { background-color: #020617; }
+.bg-slate-900 { background-color: #0f172a; }
+.bg-slate-800 { background-color: #1e293b; }
+.border-slate-800 { border-color: #1e293b; }
+.border-slate-700 { border-color: #334155; }
+.text-slate-100 { color: #f1f5f9; }
+.text-slate-300 { color: #cbd5e1; }
+.text-slate-400 { color: #94a3b8; }
+.text-slate-500 { color: #64748b; }
+.font-mono { font-family: var(--font-mono); }
