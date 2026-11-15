@@ -53,5 +53,15 @@ FOR SELECT
 TO anon
 USING (true);
 
--- 6. Enable Realtime Publications for live dashboard streaming
-ALTER PUBLICATION supabase_realtime ADD TABLE public.detection_readings;
+-- 6. Enable Realtime Publications for live dashboard streaming safely
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_publication_tables 
+        WHERE pubname = 'supabase_realtime' 
+        AND schemaname = 'public' 
+        AND tablename = 'detection_readings'
+    ) THEN
+        ALTER PUBLICATION supabase_realtime ADD TABLE public.detection_readings;
+    END IF;
+END $$;
