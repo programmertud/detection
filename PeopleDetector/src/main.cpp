@@ -185,14 +185,17 @@ void setupHardware() {
 // ----------------------------------------------------------------------------
 void triggerBuzzerAlert(bool playChirp) {
     if (playChirp) {
-        // High-pitch 2400 Hz acoustic alert pulse (supports both active & passive buzzers)
-        tone(PIN_BUZZER, 2400, 120);
-        digitalWrite(PIN_BUZZER, HIGH);
-        delay(100);
-        digitalWrite(PIN_BUZZER, LOW);
-        noTone(PIN_BUZZER);
+        // High-pitch 2400 Hz acoustic alert pulse
+        // Generates clean software square wave compatible with active & passive buzzers
+        // completely bypassing LEDC hardware timers to eliminate driver errors
+        unsigned long startMs = millis();
+        while (millis() - startMs < 100) {
+            digitalWrite(PIN_BUZZER, HIGH);
+            delayMicroseconds(208); // 2400 Hz half-cycle
+            digitalWrite(PIN_BUZZER, LOW);
+            delayMicroseconds(208);
+        }
     } else {
-        noTone(PIN_BUZZER);
         digitalWrite(PIN_BUZZER, LOW);
     }
 }
