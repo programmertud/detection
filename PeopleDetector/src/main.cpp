@@ -33,8 +33,9 @@
 // ----------------------------------------------------------------------------
 // HARDWARE PIN DEFINITIONS
 // ----------------------------------------------------------------------------
-constexpr uint8_t PIN_TRIG = 5;  // Ultrasonic Trigger Pin
-constexpr uint8_t PIN_ECHO = 6;  // Ultrasonic Echo Pin (Received via 3.3V divider)
+constexpr uint8_t PIN_TRIG   = 5;  // Ultrasonic Trigger Pin
+constexpr uint8_t PIN_ECHO   = 6;  // Ultrasonic Echo Pin (Received via 3.3V divider)
+constexpr uint8_t PIN_BUZZER = 7;  // Audible Alert Buzzer Pin (Active or Passive)
 
 // ----------------------------------------------------------------------------
 // SENSOR & SYSTEM CONFIGURATION
@@ -86,6 +87,7 @@ void connectToWiFi();
 void maintainWiFiConnection();
 SensorReading sampleUltrasonicDistance();
 bool uploadReadingToSupabase(const SensorReading& reading);
+void triggerBuzzerAlert(bool playChirp);
 
 // ----------------------------------------------------------------------------
 // SETUP
@@ -101,7 +103,7 @@ void setup() {
     Serial.println("  Academic Research & Laboratory Demonstration Node    ");
     Serial.println("=======================================================");
     Serial.printf("Configured Distance Threshold: %.1f cm\n", DETECTION_THRESHOLD_CM);
-    Serial.printf("Sensor Pins: TRIG=GPIO%d, ECHO=GPIO%d\n", PIN_TRIG, PIN_ECHO);
+    Serial.printf("Sensor Pins: TRIG=GPIO%d, ECHO=GPIO%d, BUZZER=GPIO%d\n", PIN_TRIG, PIN_ECHO, PIN_BUZZER);
     Serial.println("=======================================================");
 
     setupHardware();
@@ -134,6 +136,13 @@ void loop() {
         Serial.printf("  Detection State   : %s\n", reading.isDetected ? "PERSON DETECTED" : "CLEAR");
         Serial.printf("  Sensor Status     : %s\n", reading.statusText);
 
+        // Physical Audible Alert (Buzzer pulses on detection)
+        if (reading.isDetected) {
+            triggerBuzzerAlert(true);
+        } else {
+            triggerBuzzerAlert(false);
+        }
+
         // Upload to Supabase cloud if Wi-Fi is connected
         if (WiFi.status() == WL_CONNECTED) {
             bool success = uploadReadingToSupabase(reading);
@@ -157,11 +166,35 @@ void loop() {
 void setupHardware() {
     pinMode(PIN_TRIG, OUTPUT);
     pinMode(PIN_ECHO, INPUT);
+    pinMode(PIN_BUZZER, OUTPUT);
 
-    // Ensure trigger starts in low quiescent state
+    // Ensure outputs start in low quiescent state
     digitalWrite(PIN_TRIG, LOW);
+    digitalWrite(PIN_BUZZER, LOW);
     delayMicroseconds(50);
-    Serial.println("[HW] HC-SR04 GPIO pins configured successfully.");
+    Serial.println("[HW] HC-SR04 & Buzzer GPIO pins configured successfully.");
+
+    // Power-on acoustic confirmation test (two rapid 60ms beeps)
+    triggerBuzzerAlert(true);
+    delay(80);
+    triggerBuzzerAlert(true);
+}
+
+// ----------------------------------------------------------------------------
+// BUZZER ACOUSTIC ALERT CONTROLLER
+// ----------------------------------------------------------------------------
+void triggerBuzzerAlert(bool playChirp) {
+    if (playChirp) {
+        // High-pitch 2400 Hz acoustic alert pulse (supports both active & passive buzzers)
+        tone(PIN_BUZZER, 2400, 120);
+        digitalWrite(PIN_BUZZER, HIGH);
+        delay(100);
+        digitalWrite(PIN_BUZZER, LOW);
+        noTone(PIN_BUZZER);
+    } else {
+        noTone(PIN_BUZZER);
+        digitalWrite(PIN_BUZZER, LOW);
+    }
 }
 
 // ----------------------------------------------------------------------------

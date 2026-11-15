@@ -18,13 +18,18 @@ An end-to-end, deployment-ready IoT monitoring and research telemetry system for
 |  |                    |                   |                          |  |
 |  |  VCC (5V)  <-------+-------------------+-- 5V / VIN               |  |
 |  |  TRIG      <-------+-------------------+-- GPIO 5 (Output)        |  |
-|  |  ECHO (5V) --------+--[ R1: 1kΩ ]--*---+-- GPIO 6 (Input)        |  |
+|  |  ECHO (5V) --------+--[ R1: 1kΩ ]--*---+-- GPIO 6 (Input)         |  |
 |  |                    |               |   |                          |  |
 |  |                    |          [ R2: 2kΩ]                          |  |
 |  |                    |               |   |                          |  |
 |  |  GND       --------+---------------+---+-- GND (Common)          |  |
-|  +--------------------+               |   +--------------------------+  |
-|                                      GND                                |
+|  +--------------------+               |   |                          |  |
+|                                      GND  |                          |  |
+|  +--------------------+                   |                          |  |
+|  |  Piezo Buzzer      |                   |                          |  |
+|  |  Positive (+)  <---+-------------------+-- GPIO 7 (Output)        |  |
+|  |  Negative (-)  ----+-------------------+-- GND (Common)          |  |
+|  +--------------------+                   +--------------------------+  |
 +-------------------------------------------------------------------------+
                                      |
                           Wi-Fi 802.11 b/g/n (2.4 GHz)
@@ -96,12 +101,14 @@ $3.33\text{ V}$ safely meets the ESP32-S3 High-Level Input threshold ($V_{IH} \g
 
 ### 2.3 Wiring Pinout Table
 
-| HC-SR04 Pin | ESP32-S3 Pin | Intermediary Components | Signal Voltage | Description |
+| Component Pin | ESP32-S3 Pin | Intermediary Components | Signal Voltage | Description |
 | :--- | :--- | :--- | :--- | :--- |
-| **VCC** | **5V / VIN** | Direct wire | 5.0V DC | Sensor power rail |
-| **TRIG** | **GPIO 5** | Direct wire | 3.3V Logic | 10µs ultrasonic burst trigger |
-| **ECHO** | **GPIO 6** | $R_1 (1\text{k}\Omega)$ to GPIO 6, $R_2 (2\text{k}\Omega)$ to GND | 5.0V $\to$ 3.33V | Safe Echo duration pulse |
-| **GND** | **GND** | Direct wire | 0V Reference | Common circuit ground |
+| **HC-SR04 VCC** | **5V / VIN** | Direct wire | 5.0V DC | Sensor power rail |
+| **HC-SR04 TRIG** | **GPIO 5** | Direct wire | 3.3V Logic | 10µs ultrasonic burst trigger |
+| **HC-SR04 ECHO** | **GPIO 6** | $R_1 (1\text{k}\Omega)$ to GPIO 6, $R_2 (2\text{k}\Omega)$ to GND | 5.0V $\to$ 3.33V | Safe Echo duration pulse |
+| **HC-SR04 GND** | **GND** | Direct wire | 0V Reference | Common circuit ground |
+| **BUZZER (+)** | **GPIO 7** | Direct wire (Active or Passive) | 3.3V Logic | Audible alarm chirp on detection |
+| **BUZZER (-)** | **GND** | Direct wire | 0V Reference | Common circuit ground |
 
 ---
 
