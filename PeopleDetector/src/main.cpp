@@ -383,11 +383,6 @@ SensorReading sampleUltrasonicDistance() {
 
     return result;
 }
-        result.statusText = "Clear";
-    }
-
-    return result;
-}
 
 // ----------------------------------------------------------------------------
 // SUPABASE HTTPS REST UPLOAD
