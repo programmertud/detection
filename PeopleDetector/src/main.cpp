@@ -61,13 +61,16 @@ constexpr unsigned long UPLOAD_INTERVAL_MS = 2000;
 constexpr unsigned long WIFI_RECONNECT_INTERVAL_MS = 5000;
 
 // ----------------------------------------------------------------------------
-// SENSOR DATA STRUCTURE
+// SENSOR DATA STRUCTURE & DIAGNOSTICS
 // ----------------------------------------------------------------------------
 struct SensorReading {
     float distanceCm;
+    unsigned long rawEchoDurationUs; // Raw pulse duration in microseconds
     bool isDetected;
     bool isValid;
+    bool isHardwareResponding;       // True if HC-SR04 returned any echo (> 0 µs)
     const char* statusText;
+    const char* diagnosticMessage;
 };
 
 // ----------------------------------------------------------------------------
@@ -83,6 +86,7 @@ unsigned long totalUploadFailures = 0;
 // FUNCTION DECLARATIONS
 // ----------------------------------------------------------------------------
 void setupHardware();
+void runUltrasonicSelfTest();
 void connectToWiFi();
 void maintainWiFiConnection();
 SensorReading sampleUltrasonicDistance();
@@ -93,9 +97,9 @@ void triggerBuzzerAlert(bool playChirp);
 // SETUP
 // ----------------------------------------------------------------------------
 void setup() {
-    // Initialize Hardware USB CDC Serial Monitor
+    // Initialize Hardware Serial Monitor
     Serial.begin(115200);
-    delay(1000); // Allow USB Serial bridge to stabilize
+    delay(1000); // Allow UART bridge to stabilize
 
     Serial.println();
     Serial.println("=======================================================");
@@ -107,6 +111,7 @@ void setup() {
     Serial.println("=======================================================");
 
     setupHardware();
+    runUltrasonicSelfTest();
     connectToWiFi();
 }
 
@@ -125,21 +130,35 @@ void loop() {
         // Perform acoustic distance measurement and state classification
         SensorReading reading = sampleUltrasonicDistance();
 
-        // Print debug information to Serial Monitor
+        // Print formatted real-time diagnostic panel to Serial Monitor
+        Serial.println("=======================================================");
+        Serial.printf("[SAMPLE #%lu] ULTRASONIC SENSOR TELEMETRY & DIAGNOSTICS\n", totalReadingsSent + 1);
         Serial.println("-------------------------------------------------------");
-        Serial.printf("[SENSOR SAMPLE #%lu]\n", totalReadingsSent + 1);
+        
+        if (reading.isHardwareResponding) {
+            Serial.printf("  Sensor Hardware   : OPERATIONAL [OK] (Echo: %lu us)\n", reading.rawEchoDurationUs);
+        } else {
+            Serial.println("  Sensor Hardware   : NOT RESPONDING / TIMEOUT (0 us)");
+            Serial.println("  Troubleshooting   : Check 5V power rail, TRIG (GPIO 5), or ECHO (GPIO 6)");
+        }
+
         if (reading.isValid) {
             Serial.printf("  Measured Distance : %.2f cm\n", reading.distanceCm);
         } else {
             Serial.println("  Measured Distance : Invalid / Out of Range");
         }
-        Serial.printf("  Detection State   : %s\n", reading.isDetected ? "PERSON DETECTED" : "CLEAR");
+
+        Serial.printf("  Distance Threshold: %.1f cm\n", DETECTION_THRESHOLD_CM);
+        Serial.printf("  Detection State   : [%s]\n", reading.isDetected ? "PERSON DETECTED" : "AREA CLEAR");
         Serial.printf("  Sensor Status     : %s\n", reading.statusText);
+        Serial.printf("  Diagnostic Detail : %s\n", reading.diagnosticMessage);
 
         // Physical Audible Alert (Buzzer pulses on detection)
         if (reading.isDetected) {
+            Serial.println("  Audible Buzzer    : ACTIVE CHIRP (GPIO 7)");
             triggerBuzzerAlert(true);
         } else {
+            Serial.println("  Audible Buzzer    : SILENT (Area Clear)");
             triggerBuzzerAlert(false);
         }
 
@@ -149,7 +168,7 @@ void loop() {
             totalReadingsSent++;
             if (success) {
                 totalUploadSuccesses++;
-                Serial.printf("  Cloud Sync Status : SUCCESS (Total: %lu)\n", totalUploadSuccesses);
+                Serial.printf("  Cloud Sync Status : SUCCESS (HTTP 201 Created | Total: %lu)\n", totalUploadSuccesses);
             } else {
                 totalUploadFailures++;
                 Serial.printf("  Cloud Sync Status : FAILED  (Total: %lu)\n", totalUploadFailures);
@@ -157,6 +176,8 @@ void loop() {
         } else {
             Serial.println("  Cloud Sync Status : SKIPPED (Wi-Fi disconnected)");
         }
+        Serial.println("=======================================================");
+        Serial.println();
     }
 }
 
@@ -173,11 +194,55 @@ void setupHardware() {
     digitalWrite(PIN_BUZZER, LOW);
     delayMicroseconds(50);
     Serial.println("[HW] HC-SR04 & Buzzer GPIO pins configured successfully.");
+}
 
-    // Power-on acoustic confirmation test (two rapid 60ms beeps)
-    triggerBuzzerAlert(true);
-    delay(80);
-    triggerBuzzerAlert(true);
+// ----------------------------------------------------------------------------
+// ULTRASONIC SENSOR HARDWARE SELF-TEST DIAGNOSTIC (POST)
+// ----------------------------------------------------------------------------
+void runUltrasonicSelfTest() {
+    Serial.println();
+    Serial.println("-------------------------------------------------------");
+    Serial.println("  HC-SR04 ULTRASONIC SENSOR HARDWARE SELF-TEST        ");
+    Serial.println("-------------------------------------------------------");
+    Serial.println("  Firing 3 diagnostic acoustic test pulses...");
+
+    int validEchoCount = 0;
+    float lastMeasuredDist = 0.0f;
+
+    for (int i = 1; i <= 3; i++) {
+        delay(60);
+        SensorReading test = sampleUltrasonicDistance();
+        if (test.isHardwareResponding) {
+            validEchoCount++;
+            if (test.isValid) lastMeasuredDist = test.distanceCm;
+            Serial.printf("   Test Pulse #%d: ECHO RECEIVED (Duration: %lu us, Distance: %.1f cm)\n", 
+                          i, test.rawEchoDurationUs, test.distanceCm);
+        } else {
+            Serial.printf("   Test Pulse #%d: TIMEOUT (0 us - No echo detected)\n", i);
+        }
+    }
+
+    Serial.println();
+    if (validEchoCount > 0) {
+        Serial.println("  >>> RESULT: [PASSED] ULTRASONIC TRANSDUCER IS FUNCTIONAL! <<<");
+        if (lastMeasuredDist > 0) {
+            Serial.printf("      Target reflective surface detected at: %.2f cm\n", lastMeasuredDist);
+        }
+        // Confirmation double chirp on buzzer
+        triggerBuzzerAlert(true);
+        delay(80);
+        triggerBuzzerAlert(true);
+    } else {
+        Serial.println("  >>> RESULT: [WARNING] ULTRASONIC SENSOR IS NOT RESPONDING <<<");
+        Serial.println("      Zero echo pulses returned from ECHO (GPIO 6).");
+        Serial.println("      Hardware Troubleshooting Checklist:");
+        Serial.println("        1. Check VCC: Must be connected to 5V / VIN (not 3.3V).");
+        Serial.println("        2. Check TRIG: Must connect to GPIO 5.");
+        Serial.println("        3. Check ECHO: Must connect to GPIO 6 (via 1k resistor).");
+        Serial.println("        4. Check GND: Must share common ground with ESP32.");
+    }
+    Serial.println("-------------------------------------------------------");
+    Serial.println();
 }
 
 // ----------------------------------------------------------------------------
@@ -245,9 +310,12 @@ void maintainWiFiConnection() {
 SensorReading sampleUltrasonicDistance() {
     SensorReading result;
     result.distanceCm = -1.0f;
+    result.rawEchoDurationUs = 0;
     result.isDetected = false;
     result.isValid = false;
+    result.isHardwareResponding = false;
     result.statusText = "No Reading";
+    result.diagnosticMessage = "Initializing";
 
     // Step 1: Ensure clean low pulse for 4 microseconds
     digitalWrite(PIN_TRIG, LOW);
@@ -260,24 +328,39 @@ SensorReading sampleUltrasonicDistance() {
 
     // Step 3: Measure high pulse duration returned from HC-SR04 echo pin
     unsigned long echoDurationUs = pulseIn(PIN_ECHO, HIGH, ECHO_TIMEOUT_US);
+    result.rawEchoDurationUs = echoDurationUs;
 
     // Step 4: Validate pulse duration and compute physical distance
     if (echoDurationUs == 0) {
         // Echo timed out: no acoustic reflection detected or sensor disconnected
         result.isValid = false;
         result.isDetected = false;
+        result.isHardwareResponding = false;
         result.statusText = "No Reading";
+        result.diagnosticMessage = "Sensor timeout: No echo received (Check VCC 5V or wiring)";
         return result;
     }
+
+    // Hardware returned a real acoustic pulse!
+    result.isHardwareResponding = true;
 
     // Time-of-flight acoustic conversion to distance (cm)
     float calculatedDistance = (echoDurationUs * SPEED_OF_SOUND_CM_PER_US) / 2.0f;
 
     // Check against physical sensor operating boundaries (2 cm to 400 cm)
-    if (calculatedDistance < SENSOR_MIN_DISTANCE_CM || calculatedDistance > SENSOR_MAX_DISTANCE_CM) {
+    if (calculatedDistance < SENSOR_MIN_DISTANCE_CM) {
         result.isValid = false;
         result.isDetected = false;
         result.statusText = "No Reading";
+        result.diagnosticMessage = "Blind zone error: Object closer than 2.0 cm min limit";
+        return result;
+    }
+
+    if (calculatedDistance > SENSOR_MAX_DISTANCE_CM) {
+        result.isValid = false;
+        result.isDetected = false;
+        result.statusText = "No Reading";
+        result.diagnosticMessage = "Out-of-range: Reflection beyond 400.0 cm max limit";
         return result;
     }
 
@@ -291,8 +374,15 @@ SensorReading sampleUltrasonicDistance() {
     if (result.distanceCm <= DETECTION_THRESHOLD_CM) {
         result.isDetected = true;
         result.statusText = "Detected";
+        result.diagnosticMessage = "Object within proximity limit (Person Detected)";
     } else {
         result.isDetected = false;
+        result.statusText = "Clear";
+        result.diagnosticMessage = "Path unobstructed (Area Clear)";
+    }
+
+    return result;
+}
         result.statusText = "Clear";
     }
 
