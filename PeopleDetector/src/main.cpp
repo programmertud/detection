@@ -39,7 +39,6 @@ constexpr uint8_t PIN_BUZZER   = 7;  // Audible Emergency Alert Buzzer Pin
 // Analog flame threshold (0 - 4095 ADC scale on ESP32-S3, lower = hotter/closer flame)
 // Default threshold: Flame intensity >= 40% triggers alert
 constexpr float FLAME_INTENSITY_ALERT_THRESHOLD = 40.0f; // Percent
-
 // Periodic cloud upload rate: 2000 ms during normal state
 constexpr unsigned long UPLOAD_INTERVAL_MS = 2000;
 
@@ -282,16 +281,16 @@ FireReading sampleFlameSensor() {
     result.flameIntensity = intensity;
 
     // Classification Logic:
-    // Fire is flagged if Digital Output triggers (LOW) OR Analog Intensity exceeds threshold
-    if (digitalTriggered || result.flameIntensity >= FLAME_INTENSITY_ALERT_THRESHOLD) {
+    // ONLY use Analog Intensity to determine fire — DO pin is ignored
+    // because cheap LM393 potentiometers trigger falsely from ambient
+    // light, sunlight, and indoor lighting. The analog reading is reliable.
+    if (result.flameIntensity >= FLAME_INTENSITY_ALERT_THRESHOLD) {
         result.isFlameDetected = true;
         result.statusText = "Fire Alert";
         if (result.flameIntensity >= 75.0f) {
             result.diagnosticMsg = "CRITICAL: Intense open flame detected nearby!";
-        } else if (result.flameIntensity >= FLAME_INTENSITY_ALERT_THRESHOLD) {
-            result.diagnosticMsg = "WARNING: Moderate flame / heat radiation detected.";
         } else {
-            result.diagnosticMsg = "ALERT: Digital threshold triggered by IR flame sensor.";
+            result.diagnosticMsg = "WARNING: Moderate flame / heat radiation detected.";
         }
     } else {
         result.isFlameDetected = false;
