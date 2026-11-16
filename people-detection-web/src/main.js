@@ -159,9 +159,14 @@ function handleNewReading(row) {
 
   const intensity = parseFloat(row.distance_cm) || 0;
   const isFire = row.detected === true || row.sensor_status === 'Fire Alert';
+  const ageMs = Date.now() - new Date(row.created_at).getTime();
+  const isLive = ageMs < CONFIG.STALE_THRESHOLD_MS;
+  state.isNodeOnline = isLive;
 
-  if (isFire) state.totalAlerts++;
-  else state.totalSafe++;
+  if (isLive) {
+    if (isFire) state.totalAlerts++;
+    else state.totalSafe++;
+  }
 
   // Update sparkline buffer
   state.sparklineData.push({ intensity, isFire });
@@ -172,24 +177,21 @@ function handleNewReading(row) {
   prependFeedEvent(row, intensity, isFire);
 
   // Render all panels
-  renderStatusPanel(intensity, isFire);
+  renderStatusPanel(intensity, isFire, isLive);
   renderIntensityPanel(intensity);
-  renderNodePanel(row);
+  renderNodePanel(row, isLive);
   renderStatsPanel();
   renderSparkline();
 
   // Global status pill
-  setGlobalStatus(isFire);
+  setGlobalStatus(isFire, isLive);
 
   // Alert banner
-  setFireBanner(isFire, intensity);
+  setFireBanner(isFire && isLive, intensity);
 
   // Browser siren
-  if (isFire && state.audioEnabled) triggerBrowserSiren(true);
-  else if (!isFire) triggerBrowserSiren(false);
-
-  // Header sync time
-  document.getElementById('last-sync-time')?.textContent;
+  if (isFire && isLive && state.audioEnabled) triggerBrowserSiren(true);
+  else triggerBrowserSiren(false);
 }
 
 // ----------------------------------------------------------------------------
@@ -203,27 +205,53 @@ function checkStaleness() {
 
   const badge = document.getElementById('node-hw-status');
   if (badge) {
-    badge.textContent = isStale ? 'STALE' : 'ONLINE';
-    badge.className = 'node-badge ' + (isStale ? 'badge-stale' : 'badge-online');
+    badge.textContent = isStale ? 'OFFLINE' : 'ONLINE';
+    badge.className = 'node-badge ' + (isStale ? 'badge-offline' : 'badge-online');
+  }
+
+  const wifiEl = document.getElementById('node-wifi-status');
+  if (wifiEl) {
+    wifiEl.textContent = isStale ? 'Disconnected' : 'Connected';
+    wifiEl.className = 'node-badge ' + (isStale ? 'badge-offline' : 'badge-online');
+  }
+
+  // When offline/stale, clear any active fire alarm state from old history
+  if (isStale) {
+    const intensity = parseFloat(state.latestReading.distance_cm) || 0;
+    renderStatusPanel(intensity, false, false);
+    setGlobalStatus(false, false);
+    setFireBanner(false, 0);
+    triggerBrowserSiren(false);
   }
 }
 
 // ----------------------------------------------------------------------------
 // RENDER: FIRE STATUS PANEL
 // ----------------------------------------------------------------------------
-function renderStatusPanel(intensity, isFire) {
+function renderStatusPanel(intensity, isFire, isLive = true) {
   const panel  = document.getElementById('panel-fire-status');
   const icon   = document.getElementById('mon-status-icon');
   const label  = document.getElementById('mon-status-label');
   const sub    = document.getElementById('mon-status-sub');
 
-  if (isFire) {
+  if (!isLive) {
+    panel?.classList.remove('fire-active');
+    icon?.classList.remove('icon-fire');
+    icon?.classList.add('icon-offline');
+    if (label) {
+      label.textContent = 'STANDBY';
+      label.className = 'mon-status-label text-muted';
+    }
+    if (sub) sub.textContent = 'Hardware offline — Connect ESP32 to monitor';
+  } else if (isFire) {
     panel?.classList.add('fire-active');
+    icon?.classList.remove('icon-offline');
     icon?.classList.add('icon-fire');
     if (label) { label.textContent = 'FIRE!'; label.className = 'mon-status-label fire'; }
     if (sub) sub.textContent = `Flame at ${intensity.toFixed(1)}% — Buzzer active`;
   } else {
     panel?.classList.remove('fire-active');
+    icon?.classList.remove('icon-offline');
     icon?.classList.remove('icon-fire');
     if (label) { label.textContent = 'SAFE'; label.className = 'mon-status-label'; }
     if (sub) sub.textContent = 'No fire detected — Environment normal';
@@ -257,7 +285,7 @@ function renderIntensityPanel(intensity) {
 // ----------------------------------------------------------------------------
 // RENDER: NODE STATUS PANEL
 // ----------------------------------------------------------------------------
-function renderNodePanel(row) {
+function renderNodePanel(row, isLive = true) {
   const lastSeen = document.getElementById('node-last-seen');
   const doState  = document.getElementById('node-do-state');
   const wifiEl   = document.getElementById('node-wifi-status');
@@ -267,15 +295,20 @@ function renderNodePanel(row) {
     lastSeen.textContent = age < 60 ? `${age}s ago` : `${Math.floor(age/60)}m ago`;
   }
 
-  const isFire = row.detected === true || row.sensor_status === 'Fire Alert';
+  const isFire = (row.detected === true || row.sensor_status === 'Fire Alert') && isLive;
   if (doState) {
-    doState.textContent = isFire ? 'LOW (FLAME)' : 'HIGH (Clear)';
-    doState.className   = 'node-badge ' + (isFire ? 'badge-offline' : 'badge-online');
+    if (!isLive) {
+      doState.textContent = 'OFFLINE';
+      doState.className   = 'node-badge badge-offline';
+    } else {
+      doState.textContent = isFire ? 'LOW (FLAME)' : 'HIGH (Clear)';
+      doState.className   = 'node-badge ' + (isFire ? 'badge-offline' : 'badge-online');
+    }
   }
 
   if (wifiEl) {
-    wifiEl.textContent  = 'Connected';
-    wifiEl.className    = 'node-badge badge-online';
+    wifiEl.textContent  = isLive ? 'Connected' : 'Disconnected';
+    wifiEl.className    = 'node-badge ' + (isLive ? 'badge-online' : 'badge-offline');
   }
 
   // Update header node uptime placeholder
@@ -354,12 +387,15 @@ function renderSparkline() {
 // ----------------------------------------------------------------------------
 // GLOBAL STATUS PILL
 // ----------------------------------------------------------------------------
-function setGlobalStatus(isFire) {
+function setGlobalStatus(isFire, isLive = true) {
   const pill = document.getElementById('global-status-pill');
   const text = document.getElementById('global-status-text');
   if (!pill || !text) return;
 
-  if (isFire) {
+  if (!isLive) {
+    pill.className = 'global-status-pill status-offline';
+    text.textContent = 'STANDBY (NODE OFFLINE)';
+  } else if (isFire) {
     pill.className = 'global-status-pill status-fire';
     text.textContent = '⚠ FIRE ALERT';
   } else {

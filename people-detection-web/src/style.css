@@ -168,6 +168,12 @@ html, body {
   color: var(--c-green);
 }
 
+.global-status-pill.status-offline {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.15);
+  color: var(--text-muted);
+}
+
 .global-status-pill.status-fire {
   background: var(--c-red-bg);
   border-color: var(--c-red-border);
@@ -465,6 +471,13 @@ html, body {
   justify-content: center;
   flex-shrink: 0;
   transition: all 0.4s ease;
+}
+
+.mon-status-icon.icon-offline {
+  background: var(--bg-inset);
+  border-color: var(--border);
+  color: var(--text-dim);
+  animation: none;
 }
 
 .mon-status-icon.icon-fire {
