@@ -1,0 +1,11 @@
+{
+  "buildCommand": "npm --prefix people-detection-web run build",
+  "outputDirectory": "people-detection-web/dist",
+  "framework": "vite",
+  "rewrites": [
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
+  ]
+}
