@@ -206,15 +206,17 @@ void runHardwareSelfTest() {
     Serial.printf("   Ambient IR Raw ADC: %d / 4095\n", rawBaseline);
     Serial.printf("   Digital DO Status : %s\n", digitalVal == LOW ? "LOW (Flame Alert)" : "HIGH (Normal Clear)");
 
-    // Test buzzer with dual confirmation beep
-    Serial.println("  Testing Emergency Buzzer Siren...");
-    triggerEmergencySiren(true);
-    delay(120);
-    triggerEmergencySiren(false);
-    delay(80);
-    triggerEmergencySiren(true);
-    delay(120);
-    triggerEmergencySiren(false);
+    // Test buzzer with a single short confirmation beep
+    Serial.println("  Testing Emergency Buzzer...");
+    // Short 150ms beep at 2800Hz to confirm buzzer hardware is working
+    unsigned long beepStart = millis();
+    while (millis() - beepStart < 150) {
+        digitalWrite(PIN_BUZZER, HIGH);
+        delayMicroseconds(178);
+        digitalWrite(PIN_BUZZER, LOW);
+        delayMicroseconds(178);
+    }
+    digitalWrite(PIN_BUZZER, LOW);
 
     Serial.println("  >>> RESULT: [PASSED] SENSOR NODE READY FOR FIRE MONITORING! <<<");
     Serial.println("-------------------------------------------------------");
@@ -223,28 +225,25 @@ void runHardwareSelfTest() {
 
 // ----------------------------------------------------------------------------
 // EMERGENCY SIREN PULSER
-// Generates an urgent dual-frequency warble fire siren using software timing
+// Continuous beeping alarm: beeps non-stop while fire is detected.
+// Beep pattern: 100ms ON, 100ms OFF, repeating.
+// Completely silent when no fire is detected.
 // ----------------------------------------------------------------------------
 void triggerEmergencySiren(bool activate) {
     if (activate) {
-        // High-low alternating siren: 2800 Hz and 1900 Hz warble
+        // Single beep pulse: 100ms ON beep tone (2800 Hz)
         unsigned long startMs = millis();
-        // High tone (2800 Hz: half-cycle ~178 us) for 50ms
-        while (millis() - startMs < 50) {
+        while (millis() - startMs < 100) {
             digitalWrite(PIN_BUZZER, HIGH);
-            delayMicroseconds(178);
+            delayMicroseconds(178); // ~2800 Hz half-cycle
             digitalWrite(PIN_BUZZER, LOW);
             delayMicroseconds(178);
         }
-        // Low tone (1900 Hz: half-cycle ~263 us) for 50ms
-        startMs = millis();
-        while (millis() - startMs < 50) {
-            digitalWrite(PIN_BUZZER, HIGH);
-            delayMicroseconds(263);
-            digitalWrite(PIN_BUZZER, LOW);
-            delayMicroseconds(263);
-        }
+        // 100ms silent gap between beeps
+        digitalWrite(PIN_BUZZER, LOW);
+        delay(100);
     } else {
+        // Fire gone — immediately silence the buzzer
         digitalWrite(PIN_BUZZER, LOW);
     }
 }
