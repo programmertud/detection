@@ -15,7 +15,7 @@ import './style.css';
 // ----------------------------------------------------------------------------
 const CONFIG = {
   STALE_THRESHOLD_MS: 7000,
-  DEFAULT_THRESHOLD:  40.0,
+  DEFAULT_THRESHOLD:  50.0,
   MAX_FEED_EVENTS:    50,
   MAX_SPARKLINE:      20,
   HISTORY_LIMIT:      30,
@@ -155,48 +155,49 @@ async function fetchLatestReading() {
 
 function handleNewReading(row) {
   state.latestReading = row;
-  state.totalReadings++;
 
-  let intensity = parseFloat(row.distance_cm) || 0;
+  let rawIntensity = parseFloat(row.distance_cm) || 0;
   // Ambient room light filter: clamp minor baseline fluctuations (< 5%) to clean 0.0%
-  if (intensity < 5.0) intensity = 0.0;
+  let intensity = rawIntensity < 5.0 ? 0.0 : rawIntensity;
 
-  const isFire = row.detected === true || row.sensor_status === 'Fire Alert';
   const ageMs = Date.now() - new Date(row.created_at).getTime();
   const isLive = ageMs < CONFIG.STALE_THRESHOLD_MS;
   state.isNodeOnline = isLive;
 
   // When offline/disconnected, show 0.0%
   const displayIntensity = isLive ? intensity : 0.0;
+  const isFire = isLive && displayIntensity >= state.flameThreshold;
+  const isWarm = isLive && displayIntensity >= 26.0 && displayIntensity < state.flameThreshold;
 
   if (isLive) {
+    state.totalReadings++;
     if (isFire) state.totalAlerts++;
     else state.totalSafe++;
   }
 
   // Update sparkline buffer
-  state.sparklineData.push({ intensity: displayIntensity, isFire: isFire && isLive });
+  state.sparklineData.push({ intensity: displayIntensity, isFire, isWarm });
   if (state.sparklineData.length > CONFIG.MAX_SPARKLINE)
     state.sparklineData.shift();
 
   // Add to feed
-  prependFeedEvent(row, displayIntensity, isFire && isLive);
+  prependFeedEvent(row, displayIntensity, isFire, isWarm);
 
   // Render all panels
-  renderStatusPanel(displayIntensity, isFire, isLive);
+  renderStatusPanel(displayIntensity, isLive);
   renderIntensityPanel(displayIntensity, isLive);
   renderNodePanel(row, isLive);
   renderStatsPanel();
   renderSparkline();
 
   // Global status pill
-  setGlobalStatus(isFire, isLive);
+  setGlobalStatus(displayIntensity, isLive);
 
   // Alert banner
-  setFireBanner(isFire && isLive, displayIntensity);
+  setFireBanner(isFire, displayIntensity);
 
-  // Browser siren
-  if (isFire && isLive && state.audioEnabled) triggerBrowserSiren(true);
+  // Browser siren: only sounds if fire detected (>= 50%)
+  if (isFire && state.audioEnabled) triggerBrowserSiren(true);
   else triggerBrowserSiren(false);
 }
 
@@ -223,44 +224,50 @@ function checkStaleness() {
 
   // When offline/stale, clear any active fire alarm state and show clean 0.0%
   if (isStale) {
-    renderStatusPanel(0, false, false);
+    renderStatusPanel(0, false);
     renderIntensityPanel(0, false);
-    setGlobalStatus(false, false);
+    setGlobalStatus(0, false);
     setFireBanner(false, 0);
     triggerBrowserSiren(false);
+    renderStatsPanel();
   }
 }
 
 // ----------------------------------------------------------------------------
 // RENDER: FIRE STATUS PANEL
 // ----------------------------------------------------------------------------
-function renderStatusPanel(intensity, isFire, isLive = true) {
+function renderStatusPanel(intensity, isLive = true) {
   const panel  = document.getElementById('panel-fire-status');
   const icon   = document.getElementById('mon-status-icon');
   const label  = document.getElementById('mon-status-label');
   const sub    = document.getElementById('mon-status-sub');
 
+  panel?.classList.remove('fire-active', 'warm-active');
+  icon?.classList.remove('icon-offline', 'icon-fire', 'icon-warm');
+
   if (!isLive) {
-    panel?.classList.remove('fire-active');
-    icon?.classList.remove('icon-fire');
     icon?.classList.add('icon-offline');
     if (label) {
       label.textContent = 'STANDBY';
       label.className = 'mon-status-label text-muted';
     }
     if (sub) sub.textContent = 'Hardware offline — Connect ESP32 to monitor';
-  } else if (isFire) {
+  } else if (intensity >= state.flameThreshold) {
+    // 50% - 100%: Fire
     panel?.classList.add('fire-active');
-    icon?.classList.remove('icon-offline');
     icon?.classList.add('icon-fire');
     if (label) { label.textContent = 'FIRE!'; label.className = 'mon-status-label fire'; }
-    if (sub) sub.textContent = `Flame at ${intensity.toFixed(1)}% — Buzzer active`;
+    if (sub) sub.textContent = `CRITICAL: Flame intensity ${intensity.toFixed(1)}% (50-100%) — Buzzer active`;
+  } else if (intensity >= 26.0) {
+    // 26% - 50%: Warm
+    panel?.classList.add('warm-active');
+    icon?.classList.add('icon-warm');
+    if (label) { label.textContent = 'WARM'; label.className = 'mon-status-label warm'; }
+    if (sub) sub.textContent = `CAUTION: Thermal buildup ${intensity.toFixed(1)}% (26-50%)`;
   } else {
-    panel?.classList.remove('fire-active');
-    icon?.classList.remove('icon-offline');
-    icon?.classList.remove('icon-fire');
+    // 0% - 25%: Safe
     if (label) { label.textContent = 'SAFE'; label.className = 'mon-status-label'; }
-    if (sub) sub.textContent = 'No fire detected — Environment normal';
+    if (sub) sub.textContent = `Environment normal: ${intensity.toFixed(1)}% (0-25%)`;
   }
 }
 
@@ -342,7 +349,7 @@ function renderStatsPanel() {
 // ----------------------------------------------------------------------------
 // RENDER: LIVE FEED
 // ----------------------------------------------------------------------------
-function prependFeedEvent(row, intensity, isFire) {
+function prependFeedEvent(row, intensity, isFire, isWarm) {
   const container = document.getElementById('live-feed-container');
   if (!container) return;
 
@@ -351,14 +358,16 @@ function prependFeedEvent(row, intensity, isFire) {
   if (empty) empty.remove();
 
   const time = new Date(row.created_at).toLocaleTimeString('en-US', { hour12: false });
-  const statusText = isFire ? 'FIRE DETECTED' : 'Safe';
+  const statusText = isFire ? 'FIRE DETECTED' : isWarm ? 'WARM (26-50%)' : 'Safe (0-25%)';
+  const statusClass = isFire ? 'text-red' : isWarm ? 'text-amber' : 'text-green';
+  const dotClass = isFire ? 'feed-dot-fire' : isWarm ? 'feed-dot-warm' : 'feed-dot-safe';
 
   const div = document.createElement('div');
-  div.className = `feed-event ${isFire ? 'event-fire' : ''}`;
+  div.className = `feed-event ${isFire ? 'event-fire' : isWarm ? 'event-warm' : ''}`;
   div.innerHTML = `
-    <span class="feed-dot ${isFire ? 'feed-dot-fire' : 'feed-dot-safe'}"></span>
+    <span class="feed-dot ${dotClass}"></span>
     <span class="feed-time">${time}</span>
-    <span class="feed-status ${isFire ? 'text-red' : 'text-green'}">${statusText}</span>
+    <span class="feed-status ${statusClass}">${statusText}</span>
     <span class="feed-intensity">${intensity.toFixed(1)}%</span>
   `;
 
@@ -384,7 +393,7 @@ function renderSparkline() {
   data.forEach(d => {
     const bar = document.createElement('div');
     const heightPct = Math.max((d.intensity / maxVal) * 100, 4);
-    bar.className = `spark-bar ${d.isFire ? 'spark-fire' : d.intensity >= state.flameThreshold * 0.7 ? 'spark-warn' : ''}`;
+    bar.className = `spark-bar ${d.isFire ? 'spark-fire' : d.isWarm ? 'spark-warn' : ''}`;
     bar.style.height = heightPct + '%';
     bar.title = `${d.intensity.toFixed(1)}%`;
     container.appendChild(bar);
@@ -394,20 +403,25 @@ function renderSparkline() {
 // ----------------------------------------------------------------------------
 // GLOBAL STATUS PILL
 // ----------------------------------------------------------------------------
-function setGlobalStatus(isFire, isLive = true) {
+function setGlobalStatus(intensity, isLive = true) {
   const pill = document.getElementById('global-status-pill');
   const text = document.getElementById('global-status-text');
   if (!pill || !text) return;
 
+  pill.className = 'global-status-pill';
+
   if (!isLive) {
-    pill.className = 'global-status-pill status-offline';
+    pill.classList.add('status-offline');
     text.textContent = 'STANDBY (NODE OFFLINE)';
-  } else if (isFire) {
-    pill.className = 'global-status-pill status-fire';
-    text.textContent = '⚠ FIRE ALERT';
+  } else if (intensity >= state.flameThreshold) {
+    pill.classList.add('status-fire');
+    text.textContent = '⚠ FIRE ALERT (50-100%)';
+  } else if (intensity >= 26.0) {
+    pill.classList.add('status-warm');
+    text.textContent = '⚡ WARM (26-50%)';
   } else {
-    pill.className = 'global-status-pill status-safe';
-    text.textContent = 'SYSTEM NORMAL';
+    pill.classList.add('status-safe');
+    text.textContent = 'SYSTEM NORMAL (0-25%)';
   }
 }
 
@@ -452,9 +466,11 @@ async function loadHistory() {
       .limit(CONFIG.HISTORY_LIMIT);
 
     if (state.historyFilter === 'DETECTED') {
-      query = query.eq('detected', true);
+      // Fire (50-100%)
+      query = query.gte('distance_cm', 50.0);
     } else if (state.historyFilter === 'CLEAR') {
-      query = query.eq('detected', false);
+      // Safe (0-25%)
+      query = query.lt('distance_cm', 26.0);
     }
 
     const { data, error } = await query;
@@ -478,19 +494,29 @@ function renderHistoryTable() {
   if (info) info.textContent = `${state.historyData.length} records`;
 
   tbody.innerHTML = state.historyData.map((row, i) => {
-    const isFire    = row.detected === true || row.sensor_status === 'Fire Alert';
-    const intensity = parseFloat(row.distance_cm) || 0;
+    let rawIntensity = parseFloat(row.distance_cm) || 0;
+    // Ambient noise filter: clamp minor baseline fluctuations (< 5%) to clean 0.0%
+    const intensity = rawIntensity < 5.0 ? 0.0 : rawIntensity;
+    const isFire    = intensity >= 50.0;
+    const isWarm    = intensity >= 26.0 && intensity < 50.0;
     const ts        = new Date(row.created_at);
     const timeStr   = ts.toLocaleString('en-US', { hour12: false });
     const ageMs     = Date.now() - ts.getTime();
     const ageSecs   = Math.floor(ageMs / 1000);
     const ageStr    = ageSecs < 60 ? `${ageSecs}s` : ageSecs < 3600 ? `${Math.floor(ageSecs/60)}m` : `${Math.floor(ageSecs/3600)}h`;
 
-    const statusBadge = isFire
-      ? `<span class="log-status-badge log-status-fire">🔥 Fire Alert</span>`
-      : `<span class="log-status-badge log-status-safe">✓ Safe</span>`;
-
-    const intensityColor = isFire ? 'text-red' : intensity > state.flameThreshold * 0.6 ? 'text-amber' : 'text-green';
+    let statusBadge;
+    let intensityColor;
+    if (isFire) {
+      statusBadge = `<span class="log-status-badge log-status-fire">🔥 Fire Alert</span>`;
+      intensityColor = 'text-red';
+    } else if (isWarm) {
+      statusBadge = `<span class="log-status-badge log-status-warm">⚡ Warm</span>`;
+      intensityColor = 'text-amber';
+    } else {
+      statusBadge = `<span class="log-status-badge log-status-safe">✓ Safe</span>`;
+      intensityColor = 'text-green';
+    }
 
     return `<tr>
       <td class="log-id">#${row.id || (state.historyData.length - i)}</td>
@@ -670,6 +696,40 @@ function setupControls() {
 
   // Export CSV
   document.getElementById('export-csv-btn')?.addEventListener('click', exportCSV);
+
+  // Clear Logs / Reset Data button
+  document.getElementById('clear-data-btn')?.addEventListener('click', async () => {
+    if (!confirm('Clear all incident logs and reset readings counter to 0?')) return;
+
+    // Reset local state immediately
+    state.totalReadings = 0;
+    state.totalAlerts = 0;
+    state.totalSafe = 0;
+    state.historyData = [];
+    state.sparklineData = [];
+    renderStatsPanel();
+    renderHistoryTable();
+    renderSparkline();
+
+    const feedContainer = document.getElementById('live-feed-container');
+    if (feedContainer) {
+      feedContainer.innerHTML = '<div class="feed-empty-state" id="feed-empty"><span>Logs and counters reset to 0. Waiting for new live readings...</span></div>';
+    }
+
+    if (state.supabase) {
+      try {
+        const { error } = await state.supabase
+          .from('detection_readings')
+          .delete()
+          .gt('id', 0);
+        if (error) {
+          console.log('Database notice: Run TRUNCATE TABLE detection_readings; in Supabase SQL editor to clear historical cloud records.');
+        }
+      } catch (e) {
+        /* silent */
+      }
+    }
+  });
 
   // Audio toggle switch
   const audioSwitch = document.getElementById('audio-toggle-switch');

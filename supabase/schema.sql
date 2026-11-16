@@ -41,8 +41,8 @@ ON public.detection_readings
 FOR INSERT
 TO anon
 WITH CHECK (
-    -- Allow fire status values as well as legacy values for smooth migration
-    sensor_status IN ('Fire Alert', 'Safe', 'Warning', 'Detected', 'Clear', 'No Reading')
+    -- Allow fire status values including Warm (26-50%) as well as legacy values
+    sensor_status IN ('Fire Alert', 'Safe', 'Warm', 'Warning', 'Detected', 'Clear', 'No Reading')
 );
 
 -- Policy 2: Allow anonymous clients (Frontend Dashboard) to SELECT historical readings
@@ -50,6 +50,14 @@ DROP POLICY IF EXISTS "Allow anonymous dashboard read" ON public.detection_readi
 CREATE POLICY "Allow anonymous dashboard read"
 ON public.detection_readings
 FOR SELECT
+TO anon
+USING (true);
+
+-- Policy 3: Allow anonymous clients / Dashboard to DELETE / reset readings
+DROP POLICY IF EXISTS "Allow anonymous delete" ON public.detection_readings;
+CREATE POLICY "Allow anonymous delete"
+ON public.detection_readings
+FOR DELETE
 TO anon
 USING (true);
 

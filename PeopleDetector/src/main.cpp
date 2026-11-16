@@ -37,8 +37,12 @@ constexpr uint8_t PIN_BUZZER   = 7;  // Audible Emergency Alert Buzzer Pin
 // SENSOR & SYSTEM CONFIGURATION
 // ----------------------------------------------------------------------------
 // Analog flame threshold (0 - 4095 ADC scale on ESP32-S3, lower = hotter/closer flame)
-// Default threshold: Flame intensity >= 40% triggers alert
-constexpr float FLAME_INTENSITY_ALERT_THRESHOLD = 40.0f; // Percent
+// 3-Tier Classification:
+//   0% - 25%   : Safe (Normal baseline, no flame, buzzer silent)
+//   26% - 50%  : Warm (Thermal signature / warm air, buzzer silent)
+//   50% - 100% : Fire Alert (Active open flame, emergency buzzer sounds)
+constexpr float FLAME_INTENSITY_ALERT_THRESHOLD = 50.0f; // Percent
+constexpr float FLAME_INTENSITY_WARM_THRESHOLD  = 26.0f; // Percent
 // Periodic cloud upload rate: 2000 ms during normal state
 constexpr unsigned long UPLOAD_INTERVAL_MS = 2000;
 
@@ -285,22 +289,26 @@ FireReading sampleFlameSensor() {
     }
     result.flameIntensity = intensity;
 
-    // Classification Logic:
-    // ONLY use Analog Intensity to determine fire — DO pin is ignored
-    // because cheap LM393 potentiometers trigger falsely from ambient
-    // light, sunlight, and indoor lighting. The analog reading is reliable.
+    // Classification Logic (3-Tier Range):
+    // 0% - 25%   : Safe (Normal baseline, no flame, buzzer silent)
+    // 26% - 50%  : Warm (Thermal buildup/caution, buzzer silent)
+    // 50% - 100% : Fire Alert (Active flame detected, emergency buzzer active)
     if (result.flameIntensity >= FLAME_INTENSITY_ALERT_THRESHOLD) {
         result.isFlameDetected = true;
         result.statusText = "Fire Alert";
         if (result.flameIntensity >= 75.0f) {
-            result.diagnosticMsg = "CRITICAL: Intense open flame detected nearby!";
+            result.diagnosticMsg = "CRITICAL: Intense open flame detected nearby (75-100%)!";
         } else {
-            result.diagnosticMsg = "WARNING: Moderate flame / heat radiation detected.";
+            result.diagnosticMsg = "FIRE ALERT: Active flame / fire detected (50-100%).";
         }
+    } else if (result.flameIntensity >= FLAME_INTENSITY_WARM_THRESHOLD) {
+        result.isFlameDetected = false;
+        result.statusText = "Warm";
+        result.diagnosticMsg = "CAUTION: Warm thermal signature detected (26-50%).";
     } else {
         result.isFlameDetected = false;
         result.statusText = "Safe";
-        result.diagnosticMsg = "Area Safe. No fire or thermal source detected.";
+        result.diagnosticMsg = "Area Safe. Normal baseline environment (0-25%).";
     }
 
     return result;
