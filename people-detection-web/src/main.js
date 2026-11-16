@@ -157,11 +157,17 @@ function handleNewReading(row) {
   state.latestReading = row;
   state.totalReadings++;
 
-  const intensity = parseFloat(row.distance_cm) || 0;
+  let intensity = parseFloat(row.distance_cm) || 0;
+  // Ambient room light filter: clamp minor baseline fluctuations (< 5%) to clean 0.0%
+  if (intensity < 5.0) intensity = 0.0;
+
   const isFire = row.detected === true || row.sensor_status === 'Fire Alert';
   const ageMs = Date.now() - new Date(row.created_at).getTime();
   const isLive = ageMs < CONFIG.STALE_THRESHOLD_MS;
   state.isNodeOnline = isLive;
+
+  // When offline/disconnected, show 0.0%
+  const displayIntensity = isLive ? intensity : 0.0;
 
   if (isLive) {
     if (isFire) state.totalAlerts++;
@@ -169,16 +175,16 @@ function handleNewReading(row) {
   }
 
   // Update sparkline buffer
-  state.sparklineData.push({ intensity, isFire });
+  state.sparklineData.push({ intensity: displayIntensity, isFire: isFire && isLive });
   if (state.sparklineData.length > CONFIG.MAX_SPARKLINE)
     state.sparklineData.shift();
 
   // Add to feed
-  prependFeedEvent(row, intensity, isFire);
+  prependFeedEvent(row, displayIntensity, isFire && isLive);
 
   // Render all panels
-  renderStatusPanel(intensity, isFire, isLive);
-  renderIntensityPanel(intensity);
+  renderStatusPanel(displayIntensity, isFire, isLive);
+  renderIntensityPanel(displayIntensity, isLive);
   renderNodePanel(row, isLive);
   renderStatsPanel();
   renderSparkline();
@@ -187,7 +193,7 @@ function handleNewReading(row) {
   setGlobalStatus(isFire, isLive);
 
   // Alert banner
-  setFireBanner(isFire && isLive, intensity);
+  setFireBanner(isFire && isLive, displayIntensity);
 
   // Browser siren
   if (isFire && isLive && state.audioEnabled) triggerBrowserSiren(true);
@@ -215,10 +221,10 @@ function checkStaleness() {
     wifiEl.className = 'node-badge ' + (isStale ? 'badge-offline' : 'badge-online');
   }
 
-  // When offline/stale, clear any active fire alarm state from old history
+  // When offline/stale, clear any active fire alarm state and show clean 0.0%
   if (isStale) {
-    const intensity = parseFloat(state.latestReading.distance_cm) || 0;
-    renderStatusPanel(intensity, false, false);
+    renderStatusPanel(0, false, false);
+    renderIntensityPanel(0, false);
     setGlobalStatus(false, false);
     setFireBanner(false, 0);
     triggerBrowserSiren(false);
@@ -261,7 +267,8 @@ function renderStatusPanel(intensity, isFire, isLive = true) {
 // ----------------------------------------------------------------------------
 // RENDER: INTENSITY PANEL
 // ----------------------------------------------------------------------------
-function renderIntensityPanel(intensity) {
+function renderIntensityPanel(intensity, isLive = true) {
+  const displayVal = isLive ? (intensity < 5.0 ? 0.0 : intensity) : 0.0;
   const valEl  = document.getElementById('intensity-value');
   const barEl  = document.getElementById('intensity-bar');
   const pinEl  = document.getElementById('threshold-pin');
@@ -269,8 +276,8 @@ function renderIntensityPanel(intensity) {
   const rawEl  = document.getElementById('raw-adc');
   const thrLbl = document.getElementById('thresh-label');
 
-  if (valEl) valEl.textContent = intensity.toFixed(1);
-  if (barEl) barEl.style.width = Math.min(intensity, 100) + '%';
+  if (valEl) valEl.textContent = displayVal.toFixed(1);
+  if (barEl) barEl.style.width = Math.min(displayVal, 100) + '%';
 
   const pct = state.flameThreshold;
   if (pinEl)  pinEl.style.left  = pct + '%';
@@ -278,7 +285,7 @@ function renderIntensityPanel(intensity) {
   if (thrLbl) thrLbl.textContent = pct + '%';
 
   // Estimate raw ADC from intensity: intensity = (4095 - raw) / 4095 * 100
-  const rawApprox = Math.round(4095 - (intensity / 100) * 4095);
+  const rawApprox = isLive ? Math.round(4095 - (displayVal / 100) * 4095) : 4095;
   if (rawEl) rawEl.textContent = rawApprox;
 }
 

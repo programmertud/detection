@@ -278,6 +278,11 @@ FireReading sampleFlameSensor() {
     float intensity = ((4095.0f - (float)result.rawAnalogValue) / 4095.0f) * 100.0f;
     if (intensity < 0.0f) intensity = 0.0f;
     if (intensity > 100.0f) intensity = 100.0f;
+
+    // Ambient room light filter: clamp minor baseline fluctuations (< 5%) to clean 0.0%
+    if (intensity < 5.0f) {
+        intensity = 0.0f;
+    }
     result.flameIntensity = intensity;
 
     // Classification Logic:
