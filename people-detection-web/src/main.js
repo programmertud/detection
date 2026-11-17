@@ -14,7 +14,7 @@ import './style.css';
 // CONFIG & STATE
 // ----------------------------------------------------------------------------
 const CONFIG = {
-  STALE_THRESHOLD_MS: 7000,
+  STALE_THRESHOLD_MS: 15000,
   DEFAULT_THRESHOLD:  50.0,
   MAX_FEED_EVENTS:    50,
   MAX_SPARKLINE:      20,
@@ -25,6 +25,7 @@ const state = {
   supabase:          null,
   isConfigured:      false,
   latestReading:     null,
+  lastProcessedId:   null,
   historyData:       [],
   historyFilter:     'ALL',
   currentPage:       1,
@@ -130,8 +131,12 @@ function startDataStream() {
       }
     });
 
-  // Poll fallback every 3s to also refresh history
-  state.pollTimer = setInterval(loadHistory, 3000);
+  // Dual Polling fallback: constantly sync both latest reading AND history table every 1500ms
+  // This guarantees live data streaming even if Supabase Realtime WebSocket drops or fails
+  state.pollTimer = setInterval(async () => {
+    await fetchLatestReading();
+    await loadHistory();
+  }, 1500);
 
   // Initial fetch of latest reading
   fetchLatestReading();
@@ -154,13 +159,16 @@ async function fetchLatestReading() {
 }
 
 function handleNewReading(row) {
+  if (!row) return;
+
+  const isDuplicate = state.lastProcessedId === row.id;
   state.latestReading = row;
 
   let rawIntensity = parseFloat(row.distance_cm) || 0;
   // Ambient room light filter: clamp minor baseline fluctuations (< 5%) to clean 0.0%
   let intensity = rawIntensity < 5.0 ? 0.0 : rawIntensity;
 
-  const ageMs = Date.now() - new Date(row.created_at).getTime();
+  const ageMs = Math.abs(Date.now() - new Date(row.created_at).getTime());
   const isLive = ageMs < CONFIG.STALE_THRESHOLD_MS;
   state.isNodeOnline = isLive;
 
@@ -169,19 +177,21 @@ function handleNewReading(row) {
   const isFire = isLive && displayIntensity >= state.flameThreshold;
   const isWarm = isLive && displayIntensity >= 26.0 && displayIntensity < state.flameThreshold;
 
-  if (isLive) {
+  // Only increment counters and feed on genuinely newly arrived packets
+  if (!isDuplicate && isLive) {
+    state.lastProcessedId = row.id;
     state.totalReadings++;
     if (isFire) state.totalAlerts++;
     else state.totalSafe++;
+
+    // Update sparkline buffer
+    state.sparklineData.push({ intensity: displayIntensity, isFire, isWarm });
+    if (state.sparklineData.length > CONFIG.MAX_SPARKLINE)
+      state.sparklineData.shift();
+
+    // Add to feed
+    prependFeedEvent(row, displayIntensity, isFire, isWarm);
   }
-
-  // Update sparkline buffer
-  state.sparklineData.push({ intensity: displayIntensity, isFire, isWarm });
-  if (state.sparklineData.length > CONFIG.MAX_SPARKLINE)
-    state.sparklineData.shift();
-
-  // Add to feed
-  prependFeedEvent(row, displayIntensity, isFire, isWarm);
 
   // Render all panels
   renderStatusPanel(displayIntensity, isLive);
@@ -206,7 +216,7 @@ function handleNewReading(row) {
 // ----------------------------------------------------------------------------
 function checkStaleness() {
   if (!state.latestReading) return;
-  const age = Date.now() - new Date(state.latestReading.created_at).getTime();
+  const age = Math.abs(Date.now() - new Date(state.latestReading.created_at).getTime());
   const isStale = age > CONFIG.STALE_THRESHOLD_MS;
   state.isNodeOnline = !isStale;
 
@@ -229,7 +239,6 @@ function checkStaleness() {
     setGlobalStatus(0, false);
     setFireBanner(false, 0);
     triggerBrowserSiren(false);
-    renderStatsPanel();
   }
 }
 
@@ -303,13 +312,16 @@ function renderNodePanel(row, isLive = true) {
   const lastSeen = document.getElementById('node-last-seen');
   const doState  = document.getElementById('node-do-state');
   const wifiEl   = document.getElementById('node-wifi-status');
+  const hwBadge  = document.getElementById('node-hw-status');
 
   if (lastSeen) {
-    const age = Math.floor((Date.now() - new Date(row.created_at).getTime()) / 1000);
+    const age = Math.max(0, Math.floor(Math.abs(Date.now() - new Date(row.created_at).getTime()) / 1000));
     lastSeen.textContent = age < 60 ? `${age}s ago` : `${Math.floor(age/60)}m ago`;
   }
 
-  const isFire = (row.detected === true || row.sensor_status === 'Fire Alert') && isLive;
+  const intensity = parseFloat(row.distance_cm) || 0;
+  const isFire = (row.detected === true || row.sensor_status === 'Fire Alert' || intensity >= state.flameThreshold) && isLive;
+
   if (doState) {
     if (!isLive) {
       doState.textContent = 'OFFLINE';
@@ -323,6 +335,11 @@ function renderNodePanel(row, isLive = true) {
   if (wifiEl) {
     wifiEl.textContent  = isLive ? 'Connected' : 'Disconnected';
     wifiEl.className    = 'node-badge ' + (isLive ? 'badge-online' : 'badge-offline');
+  }
+
+  if (hwBadge) {
+    hwBadge.textContent = isLive ? 'ONLINE' : 'OFFLINE';
+    hwBadge.className   = 'node-badge ' + (isLive ? 'badge-online' : 'badge-offline');
   }
 
   // Update header node uptime placeholder
