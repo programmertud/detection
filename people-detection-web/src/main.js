@@ -22,24 +22,25 @@ const CONFIG = {
 };
 
 const state = {
-  supabase:          null,
-  isConfigured:      false,
-  latestReading:     null,
-  lastProcessedId:   null,
-  historyData:       [],
-  historyFilter:     'ALL',
-  currentPage:       1,
-  flameThreshold:    parseFloat(localStorage.getItem('flame_threshold') || CONFIG.DEFAULT_THRESHOLD),
-  audioEnabled:      localStorage.getItem('audio_alert_enabled') === 'true',
-  feedEvents:        [],       // live scrolling feed entries
-  sparklineData:     [],       // last 20 intensity values
-  sessionStart:      Date.now(),
-  totalAlerts:       0,
-  totalSafe:         0,
-  totalReadings:     0,
-  pollTimer:         null,
-  staleTimer:        null,
-  isNodeOnline:      false,
+  supabase:             null,
+  isConfigured:         false,
+  latestReading:        null,
+  lastProcessedId:      null,
+  lastPacketReceivedAt: 0,
+  historyData:          [],
+  historyFilter:        'ALL',
+  currentPage:          1,
+  flameThreshold:       parseFloat(localStorage.getItem('flame_threshold') || CONFIG.DEFAULT_THRESHOLD),
+  audioEnabled:         localStorage.getItem('audio_alert_enabled') === 'true',
+  feedEvents:           [],       // live scrolling feed entries
+  sparklineData:        [],       // last 20 intensity values
+  sessionStart:         Date.now(),
+  totalAlerts:          0,
+  totalSafe:            0,
+  totalReadings:        0,
+  pollTimer:            null,
+  staleTimer:           null,
+  isNodeOnline:         false,
 };
 
 let audioCtx = null;
@@ -123,7 +124,7 @@ function startDataStream() {
       schema: 'public',
       table: 'detection_readings',
     }, (payload) => {
-      handleNewReading(payload.new);
+      handleNewReading(payload.new, true);
     })
     .subscribe((status) => {
       if (status === 'SUBSCRIBED') {
@@ -131,55 +132,67 @@ function startDataStream() {
       }
     });
 
-  // Dual Polling fallback: constantly sync both latest reading AND history table every 1500ms
+  // Dual Polling fallback: constantly sync both latest reading AND history table every 1200ms
   // This guarantees live data streaming even if Supabase Realtime WebSocket drops or fails
   state.pollTimer = setInterval(async () => {
-    await fetchLatestReading();
+    await fetchLatestReading(false);
     await loadHistory();
-  }, 1500);
+  }, 1200);
 
   // Initial fetch of latest reading
-  fetchLatestReading();
+  fetchLatestReading(true);
 
   // Stale detection
-  state.staleTimer = setInterval(checkStaleness, 2000);
+  state.staleTimer = setInterval(checkStaleness, 1500);
 }
 
-async function fetchLatestReading() {
+async function fetchLatestReading(isInitial = false) {
   if (!state.supabase) return;
   try {
     const { data, error } = await state.supabase
       .from('detection_readings')
       .select('*')
-      .order('created_at', { ascending: false })
+      .order('id', { ascending: false })
       .limit(1)
       .single();
-    if (!error && data) handleNewReading(data);
+    if (!error && data) handleNewReading(data, isInitial);
   } catch (e) { /* silent */ }
 }
 
-function handleNewReading(row) {
-  if (!row) return;
+function handleNewReading(row, isInitial = false) {
+  if (!row || !row.id) return;
 
-  const isDuplicate = state.lastProcessedId === row.id;
+  const isNewPacket = state.lastProcessedId === null || row.id > state.lastProcessedId;
   state.latestReading = row;
 
   let rawIntensity = parseFloat(row.distance_cm) || 0;
   // Ambient room light filter: clamp minor baseline fluctuations (< 5%) to clean 0.0%
   let intensity = rawIntensity < 5.0 ? 0.0 : rawIntensity;
 
-  const ageMs = Math.abs(Date.now() - new Date(row.created_at).getTime());
-  const isLive = ageMs < CONFIG.STALE_THRESHOLD_MS;
-  state.isNodeOnline = isLive;
+  // Clock-drift immune liveness detection:
+  // If a new packet arrived (row.id > lastProcessedId), the ESP32 is actively transmitting right now!
+  if (isNewPacket) {
+    state.lastPacketReceivedAt = Date.now();
+    state.lastProcessedId = row.id;
+    state.isNodeOnline = true;
+  } else if (isInitial) {
+    // On page load, verify if reading is reasonably recent (within 2 minutes)
+    const ageSecs = Math.abs(Date.now() - new Date(row.created_at).getTime()) / 1000;
+    if (ageSecs < 120) {
+      state.lastPacketReceivedAt = Date.now();
+      state.isNodeOnline = true;
+    } else {
+      state.isNodeOnline = false;
+    }
+  }
 
-  // When offline/disconnected, show 0.0%
+  const isLive = state.isNodeOnline;
   const displayIntensity = isLive ? intensity : 0.0;
   const isFire = isLive && displayIntensity >= state.flameThreshold;
   const isWarm = isLive && displayIntensity >= 26.0 && displayIntensity < state.flameThreshold;
 
   // Only increment counters and feed on genuinely newly arrived packets
-  if (!isDuplicate && isLive) {
-    state.lastProcessedId = row.id;
+  if (isNewPacket && isLive) {
     state.totalReadings++;
     if (isFire) state.totalAlerts++;
     else state.totalSafe++;
@@ -215,10 +228,19 @@ function handleNewReading(row) {
 // STALENESS CHECK
 // ----------------------------------------------------------------------------
 function checkStaleness() {
-  if (!state.latestReading) return;
-  const age = Math.abs(Date.now() - new Date(state.latestReading.created_at).getTime());
-  const isStale = age > CONFIG.STALE_THRESHOLD_MS;
-  state.isNodeOnline = !isStale;
+  if (!state.lastPacketReceivedAt) {
+    if (state.latestReading) {
+      const ageSecs = Math.abs(Date.now() - new Date(state.latestReading.created_at).getTime()) / 1000;
+      if (ageSecs < 120) return;
+    }
+    state.isNodeOnline = false;
+  } else {
+    // Compare browser time with browser time (no server-client clock drift error)
+    const elapsed = Date.now() - state.lastPacketReceivedAt;
+    state.isNodeOnline = elapsed < CONFIG.STALE_THRESHOLD_MS;
+  }
+
+  const isStale = !state.isNodeOnline;
 
   const badge = document.getElementById('node-hw-status');
   if (badge) {
@@ -494,6 +516,12 @@ async function loadHistory() {
     if (error) return;
     state.historyData = data || [];
     renderHistoryTable();
+
+    // If live feed has the initial connecting spinner, update it
+    const emptyEl = document.getElementById('feed-empty');
+    if (emptyEl && state.historyData.length > 0) {
+      emptyEl.innerHTML = '<span>Live stream connected. Listening for real-time readings...</span>';
+    }
   } catch (e) { /* silent */ }
 }
 
